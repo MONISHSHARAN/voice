@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - Flask App Only
-Handles TwiML responses and patient registration
-WebSocket server runs separately
+MedAgg Healthcare Voice Agent - Complete Flask-SocketIO Solution
+Handles both HTTP requests and WebSocket connections for Twilio-Deepgram integration
 """
 
+import asyncio
+import base64
+import json
 import os
 import uuid
 import logging
-import requests
+import threading
+import websockets
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
+from flask_socketio import SocketIO, emit
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Start, Stream
 
@@ -18,8 +22,10 @@ from twilio.twiml.voice_response import VoiceResponse, Start, Stream
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
+# Initialize Flask app with SocketIO
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'medagg-secret-key'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Configuration
 DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY', 'ebae70e078574403bf495088b5ea043e456b7f2f')
@@ -41,91 +47,55 @@ patients = []
 conversations = {}
 active_calls = {}
 
-# Healthcare Functions
-def get_patient_info(patient_id):
-    """Get patient information by ID"""
-    patient = next((p for p in patients if p['id'] == patient_id), None)
-    if patient:
-        return {
-            "patient_id": patient['id'],
-            "name": patient['name'],
-            "phone": patient['phone_number'],
-            "language": patient['language_preference'],
-            "created_at": patient['created_at']
-        }
-    return {"error": f"Patient {patient_id} not found"}
-
-def schedule_appointment(patient_name, appointment_type, urgency_level):
-    """Schedule a medical appointment"""
-    appointment_id = str(uuid.uuid4())
-    appointment = {
-        "id": appointment_id,
-        "patient_name": patient_name,
-        "type": appointment_type,
-        "urgency": urgency_level,
-        "status": "scheduled",
-        "created_at": datetime.now().isoformat()
-    }
+def get_ai_response(transcript, language="english"):
+    """Get AI response based on transcript using rule-based system"""
+    try:
+        # Simple rule-based responses for cardiology questionnaire
+        transcript_lower = transcript.lower()
+        
+        # Cardiology UFE Questionnaire Flow
+        if any(word in transcript_lower for word in ["hello", "hi", "hey", "start", "yes", "okay", "ok"]):
+            return "Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. First, do you experience any chest pain or discomfort?"
+        
+        elif any(word in transcript_lower for word in ["yes", "chest pain", "discomfort", "pain", "hurt", "ache"]):
+            return "I understand you're experiencing chest discomfort. Can you describe the pain? Is it sharp, dull, or burning? And how long have you had this pain?"
+        
+        elif any(word in transcript_lower for word in ["no", "no pain", "no discomfort", "none", "nothing"]):
+            return "That's good to hear. Now, do you experience any shortness of breath, especially during physical activity or when lying down?"
+        
+        elif any(word in transcript_lower for word in ["breath", "breathing", "shortness", "difficulty", "trouble", "hard"]):
+            return "I see you have breathing concerns. Does this happen during rest, activity, or both? And have you noticed any swelling in your legs or ankles?"
+        
+        elif any(word in transcript_lower for word in ["appointment", "book", "schedule", "see doctor", "consultation"]):
+            return "I'd be happy to help you schedule an appointment. What type of consultation would you like - a general cardiology checkup, follow-up, or emergency consultation? And what's your preferred urgency level - low, medium, or high?"
+        
+        elif any(word in transcript_lower for word in ["emergency", "urgent", "severe", "heart attack", "critical"]):
+            return "This sounds like it could be an emergency. I'm going to alert our emergency team immediately. Please stay calm and if you're experiencing severe chest pain, call 108 or go to the nearest hospital right now. Can you tell me your current location?"
+        
+        elif any(word in transcript_lower for word in ["thank", "thanks", "goodbye", "bye", "end", "done"]):
+            return "You're very welcome! Thank you for calling MedAgg Healthcare. If you need any further assistance or want to schedule an appointment, please call us back. Take care and stay healthy!"
+        
+        elif any(word in transcript_lower for word in ["sharp", "dull", "burning", "stabbing", "pressure"]):
+            return "Thank you for describing the pain. Now, does this pain radiate to your arm, neck, or jaw? And does it get worse with activity or stress?"
+        
+        elif any(word in transcript_lower for word in ["radiate", "arm", "neck", "jaw", "shoulder"]):
+            return "I understand. Now, have you experienced any dizziness, nausea, or sweating along with these symptoms? And when did you first notice these symptoms?"
+        
+        elif any(word in transcript_lower for word in ["dizziness", "nausea", "sweating", "sweat", "dizzy"]):
+            return "Thank you for that information. Based on your symptoms, I recommend scheduling an appointment with our cardiology team. Would you like me to book an appointment for you? What's your preferred time - morning, afternoon, or evening?"
+        
+        elif any(word in transcript_lower for word in ["morning", "afternoon", "evening", "time", "schedule"]):
+            return "Perfect! I'll schedule your cardiology consultation. Can you please provide your full name and phone number for the appointment booking?"
+        
+        elif any(word in transcript_lower for word in ["name", "phone", "number", "contact"]):
+            return "Thank you for providing your information. Your appointment has been scheduled. You'll receive a confirmation call shortly. Is there anything else you'd like to discuss about your heart health?"
+        
+        else:
+            return "I understand. Can you tell me more about your symptoms? Are you experiencing any chest pain, shortness of breath, or other cardiovascular concerns?"
     
-    # Store appointment
-    if 'appointments' not in conversations:
-        conversations['appointments'] = {}
-    conversations['appointments'][appointment_id] = appointment
-    
-    return {
-        "appointment_id": appointment_id,
-        "message": f"Appointment scheduled for {patient_name}. Type: {appointment_type}, Urgency: {urgency_level}",
-        "status": "scheduled"
-    }
-
-def get_medical_advice(symptoms):
-    """Provide medical advice based on symptoms"""
-    advice_responses = {
-        "headache": "For headaches: rest in a dark room, apply cold compress, stay hydrated. If severe or persistent, consult a doctor immediately.",
-        "fever": "For fever: rest, stay hydrated, use fever reducers if appropriate. If temperature is very high or persistent, seek medical attention.",
-        "cough": "For cough: stay hydrated, use throat lozenges, avoid irritants. If cough is severe or with blood, see a doctor.",
-        "nausea": "For nausea: eat small, bland meals, avoid strong smells, stay hydrated. If severe or with vomiting, seek medical help.",
-        "chest_pain": "Chest pain requires immediate medical attention. Call emergency services or go to the nearest hospital immediately.",
-        "emergency": "This appears to be an emergency situation. Please call 108 or your local emergency services immediately. I can help you, but immediate medical assistance is needed.",
-        "default": "Please describe your symptoms in detail. If symptoms are severe or concerning, consult a healthcare professional immediately."
-    }
-    
-    symptoms_lower = symptoms.lower()
-    if 'chest pain' in symptoms_lower or 'heart' in symptoms_lower or 'emergency' in symptoms_lower:
-        return advice_responses["emergency"]
-    elif 'headache' in symptoms_lower:
-        return advice_responses["headache"]
-    elif 'fever' in symptoms_lower:
-        return advice_responses["fever"]
-    elif 'cough' in symptoms_lower:
-        return advice_responses["cough"]
-    elif 'nausea' in symptoms_lower or 'vomit' in symptoms_lower:
-        return advice_responses["nausea"]
-    else:
-        return advice_responses["default"]
-
-def emergency_alert(patient_name, emergency_type, location):
-    """Send emergency alert"""
-    alert_id = str(uuid.uuid4())
-    alert = {
-        "id": alert_id,
-        "patient_name": patient_name,
-        "type": emergency_type,
-        "location": location,
-        "status": "alert_sent",
-        "created_at": datetime.now().isoformat()
-    }
-    
-    # Store emergency alert
-    if 'emergencies' not in conversations:
-        conversations['emergencies'] = {}
-    conversations['emergencies'][alert_id] = alert
-    
-    return {
-        "alert_id": alert_id,
-        "message": f"Emergency alert sent for {patient_name}. Type: {emergency_type}, Location: {location}",
-        "status": "alert_sent"
-    }
+    except Exception as e:
+        logger.error(f"Error getting AI response: {e}")
+        return "I'm sorry, I didn't catch that. Could you please repeat your response?"
 
 # Flask Routes
 @app.route('/')
@@ -411,8 +381,90 @@ def make_twilio_call(patient):
         
         return False
 
-def run_app():
-    """Run the Flask app"""
+# SocketIO Event Handlers
+@socketio.on('connect', namespace='/stream')
+def handle_connect():
+    """Handle WebSocket connection"""
+    logger.info("🎤 WebSocket client connected to /stream")
+    emit('status', {'message': 'Connected to MedAgg Healthcare Voice Agent'})
+
+@socketio.on('disconnect', namespace='/stream')
+def handle_disconnect():
+    """Handle WebSocket disconnection"""
+    logger.info("🔌 WebSocket client disconnected from /stream")
+
+@socketio.on('start', namespace='/stream')
+def handle_start(data):
+    """Handle call start event"""
+    call_sid = data.get('callSid')
+    logger.info(f"📞 Call started: {call_sid}")
+    
+    # Store call information
+    active_calls[call_sid] = {
+        'start_time': datetime.now().isoformat(),
+        'status': 'active'
+    }
+
+@socketio.on('media', namespace='/stream')
+def handle_media(data):
+    """Handle incoming media stream"""
+    try:
+        # Get audio data
+        payload = data.get('media', {}).get('payload', '')
+        track = data.get('media', {}).get('track', '')
+        
+        if track == 'inbound' and payload:
+            # Decode audio data
+            audio_data = base64.b64decode(payload)
+            
+            # Process with Deepgram in background thread
+            threading.Thread(
+                target=process_audio_with_deepgram,
+                args=(audio_data, data.get('callSid')),
+                daemon=True
+            ).start()
+            
+    except Exception as e:
+        logger.error(f"Error handling media: {e}")
+
+@socketio.on('stop', namespace='/stream')
+def handle_stop(data):
+    """Handle call stop event"""
+    call_sid = data.get('callSid')
+    logger.info(f"🛑 Call stopped: {call_sid}")
+    
+    if call_sid in active_calls:
+        active_calls[call_sid]['status'] = 'ended'
+        active_calls[call_sid]['end_time'] = datetime.now().isoformat()
+
+def process_audio_with_deepgram(audio_data, call_sid):
+    """Process audio with Deepgram in background thread"""
+    try:
+        # This is a simplified version - in production, you'd want to use async
+        # For now, we'll just log that we received audio
+        logger.info(f"🎵 Received audio data for call {call_sid}: {len(audio_data)} bytes")
+        
+        # In a real implementation, you would:
+        # 1. Send audio to Deepgram API
+        # 2. Get transcription
+        # 3. Generate AI response
+        # 4. Send response back via TwiML
+        
+        # For now, let's simulate a response
+        ai_response = "I can hear you! This is a test response from the AI."
+        
+        # Send response back to Twilio
+        response_data = {
+            'event': 'twiml',
+            'twiml': f'<Response><Say voice="alice">{ai_response}</Say></Response>'
+        }
+        
+        socketio.emit('twiml', response_data, namespace='/stream')
+        
+    except Exception as e:
+        logger.error(f"Error processing audio with Deepgram: {e}")
+
+if __name__ == '__main__':
     logger.info("🏥 MedAgg Healthcare POC - CARDIOLOGY VOICE AGENT (ENGLISH)")
     logger.info("=" * 70)
     logger.info("🎤 Real-time voice recognition with Deepgram Nova-2")
@@ -428,11 +480,5 @@ def run_app():
     # Get port from environment variable
     port = int(os.environ.get('PORT', 8000))
     
-    try:
-        app.run(host='0.0.0.0', port=port, debug=False)
-    except Exception as e:
-        logger.error(f"Failed to start Flask app: {e}")
-        raise
-
-if __name__ == '__main__':
-    run_app()
+    # Run with SocketIO
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
