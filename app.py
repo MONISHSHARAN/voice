@@ -16,7 +16,7 @@ import requests
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from twilio.rest import Client
-from twilio.twiml.voice_response import VoiceResponse
+from twilio.twiml.voice_response import VoiceResponse, Start, Stream
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -246,12 +246,14 @@ def twiml_endpoint():
         
         response = VoiceResponse()
         
-        # Start streaming to Deepgram
-        response.start()
-        response.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/stream")
-        
-        # Say greeting
+        # Say greeting first
         response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. This call may be monitored for quality purposes.", voice='alice')
+        
+        # Start streaming to Deepgram using proper TwiML syntax
+        start = Start()
+        stream = Stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/stream")
+        start.append(stream)
+        response.append(start)
         
         # Keep the call alive for conversation
         response.pause(length=60)
