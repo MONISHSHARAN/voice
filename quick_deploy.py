@@ -1,103 +1,70 @@
 #!/usr/bin/env python3
 """
-Quick Deploy MedAgg Healthcare System
+Quick GitHub Deployment Script for MedAgg Healthcare
 """
 
 import subprocess
 import os
-import webbrowser
-import time
-
-def main():
-    print("🚀 QUICK DEPLOY - MedAgg Healthcare System")
-    print("=" * 60)
-    
-    # Create a simple deployment package
-    print("📦 Preparing deployment package...")
-    
-    # Create requirements.txt
-    with open('requirements.txt', 'w') as f:
-        f.write('''twilio==9.8.0
-requests==2.31.0
-gunicorn==21.2.0''')
-    
-    # Create runtime.txt
-    with open('runtime.txt', 'w') as f:
-        f.write('python-3.12.0')
-    
-    # Create a simple start script
-    with open('start.py', 'w') as f:
-        f.write('''
-import os
 import sys
 
-# Add current directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Import and run the app
-from app import start_heroku_backend
-
-if __name__ == "__main__":
-    start_heroku_backend()
-''')
-    
-    print("✅ Deployment package created!")
-    
-    # Instructions for immediate deployment
-    print("\n🎯 IMMEDIATE DEPLOYMENT OPTIONS:")
-    print("=" * 60)
-    print("OPTION 1: Render (Recommended - Easiest)")
-    print("1. Go to https://render.com/")
-    print("2. Sign up with GitHub")
-    print("3. Click 'New +' → 'Web Service'")
-    print("4. Connect your GitHub repository")
-    print("5. Select this repository")
-    print("6. Render will auto-detect Python")
-    print("7. Set these environment variables:")
-    print("   - TWILIO_ACCOUNT_SID: AC33f397657e06dac328e5d5081eb4f9fd")
-    print("   - TWILIO_AUTH_TOKEN: bbf7abc794d8f0eb9538350b501d033f")
-    print("   - TWILIO_PHONE_NUMBER: +17752586467")
-    print("8. Click 'Deploy'")
-    print("9. You'll get a URL like: https://medagg-healthcare.onrender.com")
-    print("=" * 60)
-    
-    print("\nOPTION 2: Railway (Alternative)")
-    print("1. Go to https://railway.app/")
-    print("2. Sign up with GitHub")
-    print("3. Click 'New Project' → 'Deploy from GitHub repo'")
-    print("4. Select this repository")
-    print("5. Railway will auto-deploy")
-    print("6. You'll get a URL like: https://medagg-healthcare.up.railway.app")
-    print("=" * 60)
-    
-    print("\nOPTION 3: Heroku (If you have CLI)")
-    print("1. Install Heroku CLI from https://devcenter.heroku.com/articles/heroku-cli")
-    print("2. Run: heroku login")
-    print("3. Run: heroku create medagg-healthcare")
-    print("4. Run: git push heroku main")
-    print("5. You'll get a URL like: https://medagg-healthcare.herokuapp.com")
-    print("=" * 60)
-    
-    # Open deployment services
-    print("\n🌐 Opening deployment services...")
+def run_command(cmd, description):
+    """Run a command and handle errors"""
+    print(f"🔄 {description}...")
     try:
-        webbrowser.open("https://render.com/")
-        time.sleep(2)
-        webbrowser.open("https://railway.app/")
-    except:
-        print("Please manually open: https://render.com/ and https://railway.app/")
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        print(f"✅ {description} completed")
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error: {e}")
+        print(f"Output: {e.stdout}")
+        print(f"Error: {e.stderr}")
+        return None
+
+def main():
+    print("🚀 QUICK GITHUB DEPLOYMENT - MedAgg Healthcare")
+    print("=" * 60)
     
-    print("\n📋 AFTER DEPLOYMENT:")
-    print("1. Get your public URL (e.g., https://medagg-healthcare.onrender.com)")
-    print("2. Configure Twilio webhooks:")
-    print("   - Go to https://console.twilio.com/us1/develop/phone-numbers/manage/incoming")
-    print("   - Click on your phone number: +17752586467")
-    print("   - Set Voice URL to: https://your-app-url.com/twiml")
-    print("   - Set HTTP Method to: POST")
-    print("   - Save configuration")
-    print("3. Test by registering a patient!")
+    # Step 1: Initialize Git
+    if not os.path.exists('.git'):
+        run_command('git init', 'Initializing Git repository')
+    else:
+        print("✅ Git repository already exists")
     
-    print("\n✅ Your system is ready for deployment!")
+    # Step 2: Add all files
+    run_command('git add .', 'Adding all files to Git')
+    
+    # Step 3: Commit
+    run_command('git commit -m "Initial commit: MedAgg Healthcare POC with Conversational AI"', 'Committing files')
+    
+    # Step 4: Create GitHub repository (you'll need to do this manually)
+    print("\n📋 MANUAL STEPS REQUIRED:")
+    print("1. Go to https://github.com/new")
+    print("2. Create a new repository named 'medagg-healthcare'")
+    print("3. Copy the repository URL")
+    print("4. Run these commands:")
+    print("   git remote add origin https://github.com/YOUR_USERNAME/medagg-healthcare.git")
+    print("   git branch -M main")
+    print("   git push -u origin main")
+    
+    print("\n🌐 RENDER DEPLOYMENT:")
+    print("1. Go to https://render.com")
+    print("2. Connect your GitHub account")
+    print("3. Select 'medagg-healthcare' repository")
+    print("4. Use these settings:")
+    print("   - Build Command: pip install -r requirements.txt")
+    print("   - Start Command: python app.py")
+    print("   - Environment Variables:")
+    print("     TWILIO_ACCOUNT_SID=AC33f397657e06dac328e5d5081eb4f9fd")
+    print("     TWILIO_AUTH_TOKEN=bbf7abc794d8f0eb9538350b501d033f")
+    print("     TWILIO_PHONE_NUMBER=+17752586467")
+    print("     PORT=8000")
+    
+    print("\n🔧 TUNNEL PASSWORD SOLUTION:")
+    print("Your tunnel password is: 'password'")
+    print("To change it, edit the password_hash in secure_tunnel.py")
+    
+    print("\n✅ READY FOR DEPLOYMENT!")
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()

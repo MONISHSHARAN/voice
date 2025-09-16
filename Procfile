@@ -1,1 +1,1 @@
-web: python deployed_backend.py
+web: python app.py
