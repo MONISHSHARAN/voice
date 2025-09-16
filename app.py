@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - Complete Flask-SocketIO Solution
-Handles both HTTP requests and WebSocket connections for Twilio-Deepgram integration
+MedAgg Healthcare Voice Agent - Complete Real-time Solution
+Based on DeepgramVoiceAgent repository implementation
 """
 
 import asyncio
@@ -416,11 +416,12 @@ def handle_start(data):
 
 @socketio.on('media', namespace='/stream')
 def handle_media(data):
-    """Handle incoming media stream"""
+    """Handle incoming media stream - Real-time Deepgram processing"""
     try:
         # Get audio data
         payload = data.get('media', {}).get('payload', '')
         track = data.get('media', {}).get('track', '')
+        call_sid = data.get('callSid')
         
         if track == 'inbound' and payload:
             # Decode audio data
@@ -428,8 +429,8 @@ def handle_media(data):
             
             # Process with Deepgram in background thread
             threading.Thread(
-                target=process_audio_with_deepgram,
-                args=(audio_data, data.get('callSid')),
+                target=process_audio_with_deepgram_realtime,
+                args=(audio_data, call_sid),
                 daemon=True
             ).start()
             
@@ -446,53 +447,67 @@ def handle_stop(data):
         active_calls[call_sid]['status'] = 'ended'
         active_calls[call_sid]['end_time'] = datetime.now().isoformat()
 
-def process_audio_with_deepgram(audio_data, call_sid):
-    """Process audio with Deepgram in background thread"""
+def process_audio_with_deepgram_realtime(audio_data, call_sid):
+    """Process audio with Deepgram real-time streaming"""
     try:
-        logger.info(f"🎵 Received audio data for call {call_sid}: {len(audio_data)} bytes")
+        logger.info(f"🎵 Processing audio for call {call_sid}: {len(audio_data)} bytes")
         
-        # Use Deepgram SDK 4.8.1 for real-time transcription
-        from deepgram import DeepgramClient, PrerecordedOptions, FileSource
+        # Use Deepgram Live Transcription API for real-time processing
+        from deepgram import DeepgramClient, LiveTranscriptionEvents
+        import asyncio
         
         # Initialize Deepgram client
         deepgram = DeepgramClient(DEEPGRAM_API_KEY)
         
-        # Configure options for real-time streaming
-        options = PrerecordedOptions(
-            model="nova-2",
-            language="en",
-            smart_format=True,
-            punctuate=True,
-            diarize=False
-        )
+        # Create live transcription connection
+        connection = deepgram.listen.websocket.v("1")
         
-        # Process audio data
-        response = deepgram.listen.prerecorded.v("1").transcribe_file(
-            {"buffer": audio_data, "mimetype": "audio/mulaw;rate=8000"},
-            options
-        )
+        # Event handlers
+        @connection.on(LiveTranscriptionEvents.Transcript)
+        def handle_transcript(result):
+            try:
+                transcript = result.channel.alternatives[0].transcript
+                is_final = result.is_final
+                
+                if transcript and is_final:
+                    logger.info(f"🎯 Deepgram Transcript: {transcript}")
+                    
+                    # Get AI response
+                    ai_response = get_ai_response(transcript)
+                    logger.info(f"🤖 AI Response: {ai_response}")
+                    
+                    # Send response back to Twilio
+                    response_data = {
+                        'event': 'twiml',
+                        'twiml': f'<Response><Say voice="alice">{ai_response}</Say></Response>'
+                    }
+                    
+                    socketio.emit('twiml', response_data, namespace='/stream')
+                    
+            except Exception as e:
+                logger.error(f"Error handling transcript: {e}")
         
-        # Extract transcript
-        transcript = ""
-        if response.results and response.results.channels:
-            transcript = response.results.channels[0].alternatives[0].transcript
+        @connection.on(LiveTranscriptionEvents.Error)
+        def handle_error(error):
+            logger.error(f"Deepgram error: {error}")
         
-        if transcript:
-            logger.info(f"🎯 Deepgram Transcript: {transcript}")
-            
-            # Get AI response
-            ai_response = get_ai_response(transcript)
-            logger.info(f"🤖 AI Response: {ai_response}")
-            
-            # Send response back to Twilio
-            response_data = {
-                'event': 'twiml',
-                'twiml': f'<Response><Say voice="alice">{ai_response}</Say></Response>'
-            }
-            
-            socketio.emit('twiml', response_data, namespace='/stream')
-        else:
-            logger.info("No transcript received from Deepgram")
+        # Start the connection
+        connection.start({
+            "model": "nova-2",
+            "language": "en",
+            "smart_format": True,
+            "interim_results": True
+        })
+        
+        # Send audio data
+        connection.send(audio_data)
+        
+        # Keep connection alive for a short time
+        import time
+        time.sleep(0.1)
+        
+        # Close connection
+        connection.finish()
         
     except Exception as e:
         logger.error(f"Error processing audio with Deepgram: {e}")
