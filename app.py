@@ -166,7 +166,7 @@ def load_healthcare_config():
                 "provider": {
                     "type": "deepgram",
                     "model": "nova-3-medical",
-                    "keyterms": ["hello", "goodbye", "emergency", "help", "doctor", "pain", "fever", "appointment"]
+                    "keyterms": ["hello", "goodbye", "emergency", "help", "doctor", "pain", "chest", "breath", "appointment", "yes", "no", "cardiology", "heart"]
                 }
             },
             "think": {
@@ -175,7 +175,7 @@ def load_healthcare_config():
                     "model": "gpt-4o-mini",
                     "temperature": 0.7
                 },
-                "prompt": "You are Dr. MedAgg, a professional healthcare AI assistant from MedAgg Healthcare. You can: 1) Get patient info with get_patient_info, 2) Schedule appointments with schedule_appointment, 3) Provide medical advice with get_medical_advice, 4) Send emergency alerts with emergency_alert. IMPORTANT: Always prioritize patient safety. For emergencies, immediately use emergency_alert function. Be empathetic, professional, and thorough. Always confirm patient details and provide clear medical guidance. If symptoms are severe or concerning, recommend immediate medical attention. Speak clearly and professionally.",
+                "prompt": "You are Dr. MedAgg, a professional cardiology AI specialist from MedAgg Healthcare. You are conducting a UFE (Unified Flow Evaluation) cardiology questionnaire. Follow this conversation flow: 1) Welcome and ask about chest pain/discomfort, 2) Ask about shortness of breath, 3) Get details about pain location and duration, 4) Assess breathing during activity and position, 5) Offer to schedule cardiology appointment, 6) Ask about urgency and preferred time, 7) Confirm appointment booking, 8) Offer to connect with live specialist. Always be empathetic, professional, and thorough. For emergencies (severe chest pain, heart attack symptoms), immediately use emergency_alert function. Ask only 2 questions at a time, wait for responses, then ask 2 more. Keep the conversation natural and human-like. Focus on cardiology and heart health.",
                 "functions": [
                     {
                         "name": "get_patient_info",
@@ -257,7 +257,7 @@ def load_healthcare_config():
                     "model": "aura-2-vesta-en"
                 }
             },
-            "greeting": "Hello! I'm Dr. MedAgg from MedAgg Healthcare. I'm here to help you with your health concerns. I can provide medical advice, schedule appointments, and assist with emergencies. How can I help you today?"
+            "greeting": "Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. I'll ask you some important questions about your cardiovascular health, and then help you schedule a consultation if needed. How are you feeling today?"
         }
     }
 
@@ -421,20 +421,20 @@ def home():
     </head>
     <body>
         <div class="container">
-            <h1>🏥 MedAgg Healthcare - Deepgram Voice Agent</h1>
+            <h1>🏥 MedAgg Healthcare - Cardiology Voice Agent</h1>
             <div class="status online">
                 <h3>✅ System Status: ONLINE</h3>
-                <p>Advanced AI Voice Agent with Deepgram is active!</p>
+                <p>Advanced Cardiology AI Voice Agent with Deepgram is active!</p>
             </div>
             
             <div class="feature">
                 <h3>🎤 Outstanding Features</h3>
                 <ul>
                     <li><strong>Real-time Voice Recognition:</strong> Deepgram Nova-3 Medical model</li>
-                    <li><strong>Natural Conversation:</strong> Human-like AI interaction in English</li>
-                    <li><strong>Medical Functions:</strong> Patient info, appointments, medical advice</li>
-                    <li><strong>Emergency Alerts:</strong> Automatic emergency response</li>
-                    <li><strong>Professional Healthcare AI:</strong> Dr. MedAgg assistant</li>
+                    <li><strong>Cardiology Focus:</strong> UFE questionnaire for heart health evaluation</li>
+                    <li><strong>Structured Conversation:</strong> 4-question flow with appointment booking</li>
+                    <li><strong>Emergency Detection:</strong> Automatic emergency response for heart symptoms</li>
+                    <li><strong>Live Agent Transfer:</strong> Connect with real cardiology specialists</li>
                 </ul>
             </div>
             
@@ -476,7 +476,7 @@ def twiml_endpoint():
         response = VoiceResponse()
         
         # Say greeting
-        response.say("Hello! This call may be monitored or recorded for quality purposes.", voice='alice')
+        response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. This call may be monitored for quality purposes.", voice='alice')
         
         # Connect to Deepgram Voice Agent via WebSocket
         response.connect()
@@ -570,8 +570,8 @@ def test_page():
                                 <h3>✅ Registration Successful!</h3>
                                 <p><strong>Patient ID:</strong> ${result.patient_id}</p>
                                 <p><strong>Call Status:</strong> ${result.call_initiated ? 'Initiated' : 'Failed'}</p>
-                                <p><strong>Voice Agent:</strong> Deepgram AI with Medical Functions</p>
-                                <p>You will receive a call with advanced AI conversation in English!</p>
+                                <p><strong>Voice Agent:</strong> Cardiology AI with UFE Questionnaire</p>
+                                <p>You will receive a call with structured cardiology evaluation and appointment booking!</p>
                             </div>
                         `;
                     } else {
@@ -626,7 +626,7 @@ def register_patient():
             'patient_id': patient['id'],
             'message': 'Patient registered successfully',
             'call_initiated': call_success,
-            'voice_agent': 'Deepgram AI with Medical Functions (English)',
+            'voice_agent': 'Cardiology AI with UFE Questionnaire (English)',
             'public_url': PUBLIC_URL
         }
         
@@ -680,13 +680,13 @@ async def start_websocket_server():
 
 def run_app():
     """Run the Flask app with Deepgram WebSocket server"""
-    logger.info("🏥 MedAgg Healthcare POC - DEEPGRAM VOICE AGENT (ENGLISH)")
+    logger.info("🏥 MedAgg Healthcare POC - CARDIOLOGY VOICE AGENT (ENGLISH)")
     logger.info("=" * 70)
     logger.info("🎤 Real-time voice recognition with Deepgram Nova-3 Medical")
-    logger.info("🤖 Advanced AI conversation with medical functions")
+    logger.info("❤️ Cardiology-focused UFE questionnaire conversation")
     logger.info("📞 Twilio integration with WebSocket streaming")
     logger.info("🌍 Language: English (optimized for Deepgram)")
-    logger.info("💬 Human-like conversation flow")
+    logger.info("💬 Structured 4-question flow with appointment booking")
     logger.info(f"🌐 Public URL: {PUBLIC_URL}")
     logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
     logger.info("💰 Deepgram API: ✅ Configured with $200 credit")
