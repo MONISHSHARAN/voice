@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Configuration
-DEEPGRAM_API_KEY = 'ebae70e078574403bf495088b5ea043e456b7f2f'
-TWILIO_ACCOUNT_SID = 'AC33f397657e06dac328e5d5081eb4f9fd'
-TWILIO_AUTH_TOKEN = 'bbf7abc794d8f0eb9538350b501d033f'
-TWILIO_PHONE_NUMBER = '+17752586467'
-PUBLIC_URL = 'https://voice-95g5.onrender.com'
+DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY', 'ebae70e078574403bf495088b5ea043e456b7f2f')
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', 'AC33f397657e06dac328e5d5081eb4f9fd')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'bbf7abc794d8f0eb9538350b501d033f')
+TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '+17752586467')
+PUBLIC_URL = os.getenv('PUBLIC_URL', 'https://voice-95g5.onrender.com')
 
 # Initialize Twilio client
 try:
@@ -653,6 +653,11 @@ def make_twilio_call(patient):
         
         logger.info(f"📞 Making call to {patient['phone_number']} for {patient['name']}")
         logger.info(f"🔗 TwiML URL: {twiml_url}")
+        logger.info(f"🔑 Using Twilio Account: {TWILIO_ACCOUNT_SID}")
+        
+        # Check if phone number is verified for trial accounts
+        if patient['phone_number'].startswith('+91'):
+            logger.warning("⚠️ Indian number detected. Trial accounts may need verification.")
         
         # Use Twilio client to make the call
         call = twilio_client.calls.create(
@@ -667,7 +672,16 @@ def make_twilio_call(patient):
         return True
             
     except Exception as e:
-        logger.error(f"Error making call: {e}")
+        error_msg = str(e)
+        logger.error(f"❌ Error making call: {error_msg}")
+        
+        if "401" in error_msg or "Authenticate" in error_msg:
+            logger.error("🔑 Authentication failed. Check Twilio credentials.")
+        elif "unverified" in error_msg.lower():
+            logger.error("📱 Phone number needs verification for trial accounts.")
+        elif "not a valid phone number" in error_msg.lower():
+            logger.error("📞 Invalid phone number format.")
+        
         return False
 
 # WebSocket server for Twilio streaming
