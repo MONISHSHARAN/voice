@@ -138,26 +138,41 @@ def get_ai_response(transcript, language="english"):
         transcript_lower = transcript.lower()
         
         # Cardiology UFE Questionnaire Flow
-        if any(word in transcript_lower for word in ["hello", "hi", "hey", "start"]):
+        if any(word in transcript_lower for word in ["hello", "hi", "hey", "start", "yes", "okay", "ok"]):
             return "Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. First, do you experience any chest pain or discomfort?"
         
-        elif any(word in transcript_lower for word in ["yes", "chest pain", "discomfort", "pain"]):
+        elif any(word in transcript_lower for word in ["yes", "chest pain", "discomfort", "pain", "hurt", "ache"]):
             return "I understand you're experiencing chest discomfort. Can you describe the pain? Is it sharp, dull, or burning? And how long have you had this pain?"
         
-        elif any(word in transcript_lower for word in ["no", "no pain", "no discomfort"]):
+        elif any(word in transcript_lower for word in ["no", "no pain", "no discomfort", "none", "nothing"]):
             return "That's good to hear. Now, do you experience any shortness of breath, especially during physical activity or when lying down?"
         
-        elif any(word in transcript_lower for word in ["breath", "breathing", "shortness", "difficulty"]):
+        elif any(word in transcript_lower for word in ["breath", "breathing", "shortness", "difficulty", "trouble", "hard"]):
             return "I see you have breathing concerns. Does this happen during rest, activity, or both? And have you noticed any swelling in your legs or ankles?"
         
-        elif any(word in transcript_lower for word in ["appointment", "book", "schedule", "see doctor"]):
+        elif any(word in transcript_lower for word in ["appointment", "book", "schedule", "see doctor", "consultation"]):
             return "I'd be happy to help you schedule an appointment. What type of consultation would you like - a general cardiology checkup, follow-up, or emergency consultation? And what's your preferred urgency level - low, medium, or high?"
         
-        elif any(word in transcript_lower for word in ["emergency", "urgent", "severe", "heart attack"]):
+        elif any(word in transcript_lower for word in ["emergency", "urgent", "severe", "heart attack", "critical"]):
             return "This sounds like it could be an emergency. I'm going to alert our emergency team immediately. Please stay calm and if you're experiencing severe chest pain, call 108 or go to the nearest hospital right now. Can you tell me your current location?"
         
-        elif any(word in transcript_lower for word in ["thank", "thanks", "goodbye", "bye", "end"]):
+        elif any(word in transcript_lower for word in ["thank", "thanks", "goodbye", "bye", "end", "done"]):
             return "You're very welcome! Thank you for calling MedAgg Healthcare. If you need any further assistance or want to schedule an appointment, please call us back. Take care and stay healthy!"
+        
+        elif any(word in transcript_lower for word in ["sharp", "dull", "burning", "stabbing", "pressure"]):
+            return "Thank you for describing the pain. Now, does this pain radiate to your arm, neck, or jaw? And does it get worse with activity or stress?"
+        
+        elif any(word in transcript_lower for word in ["radiate", "arm", "neck", "jaw", "shoulder"]):
+            return "I understand. Now, have you experienced any dizziness, nausea, or sweating along with these symptoms? And when did you first notice these symptoms?"
+        
+        elif any(word in transcript_lower for word in ["dizziness", "nausea", "sweating", "sweat", "dizzy"]):
+            return "Thank you for that information. Based on your symptoms, I recommend scheduling an appointment with our cardiology team. Would you like me to book an appointment for you? What's your preferred time - morning, afternoon, or evening?"
+        
+        elif any(word in transcript_lower for word in ["morning", "afternoon", "evening", "time", "schedule"]):
+            return "Perfect! I'll schedule your cardiology consultation. Can you please provide your full name and phone number for the appointment booking?"
+        
+        elif any(word in transcript_lower for word in ["name", "phone", "number", "contact"]):
+            return "Thank you for providing your information. Your appointment has been scheduled. You'll receive a confirmation call shortly. Is there anything else you'd like to discuss about your heart health?"
         
         else:
             return "I understand. Can you tell me more about your symptoms? Are you experiencing any chest pain, shortness of breath, or other cardiovascular concerns?"
@@ -461,10 +476,10 @@ def make_twilio_call(patient):
         return False
 
 # WebSocket server for Twilio streaming
-async def handle_audio_stream(ws):
+async def handle_audio_stream(ws, path):
     """Handle real-time audio streaming with Deepgram"""
     call_sid = None
-    conversation_id = None
+    conversation_id = str(uuid.uuid4())
     language = "english"
     
     try:
@@ -481,11 +496,22 @@ async def handle_audio_stream(ws):
                 async for message in ws:
                     try:
                         data = json.loads(message)
-                        if data.get('event') == 'media':
+                        event = data.get('event')
+                        
+                        if event == 'start':
+                            call_sid = data.get('start', {}).get('callSid')
+                            logger.info(f"📞 Call started: {call_sid}")
+                            
+                        elif event == 'media':
                             media = data.get('media', {})
                             if media.get('track') == 'inbound':
                                 audio_data = base64.b64decode(media.get('payload', ''))
                                 await deepgram_ws.send(audio_data)
+                                
+                        elif event == 'stop':
+                            logger.info("🛑 Call stopped")
+                            break
+                            
                     except Exception as e:
                         logger.error(f"Error forwarding audio: {e}")
                         break
@@ -505,6 +531,7 @@ async def handle_audio_stream(ws):
                                 
                                 # Get AI response
                                 ai_response = get_ai_response(transcript, language)
+                                logger.info(f"🤖 AI Response: {ai_response}")
                                 
                                 # Store conversation
                                 if conversation_id:
@@ -521,11 +548,17 @@ async def handle_audio_stream(ws):
                                         'timestamp': datetime.now().isoformat()
                                     })
                                 
-                                # Send AI response back to Twilio
-                                await ws.send(json.dumps({
-                                    'event': 'say',
-                                    'text': ai_response
-                                }))
+                                # Send AI response back to Twilio using proper TwiML
+                                # Create TwiML response
+                                twiml_response = VoiceResponse()
+                                twiml_response.say(ai_response, voice='alice')
+                                
+                                # Send the TwiML response
+                                response_data = {
+                                    'event': 'twiml',
+                                    'twiml': str(twiml_response)
+                                }
+                                await ws.send(json.dumps(response_data))
                                 
                     except Exception as e:
                         logger.error(f"Error receiving transcription: {e}")
