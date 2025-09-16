@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: medagg-healthcare
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: TWILIO_ACCOUNT_SID
+        value: AC33f397657e06dac328e5d5081eb4f9fd
+      - key: TWILIO_AUTH_TOKEN
+        value: bbf7abc794d8f0eb9538350b501d033f
+      - key: TWILIO_PHONE_NUMBER
+        value: +17752586467
