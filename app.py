@@ -725,23 +725,19 @@ def make_twilio_call(patient):
 # WebSocket server for Twilio streaming
 def start_websocket_server():
     """Start WebSocket server for Twilio audio streaming"""
-    async def start_server():
-        logger.info("Starting WebSocket server for Twilio streaming...")
-        server = await websockets.serve(twilio_handler, "0.0.0.0", 5000)
-        logger.info("WebSocket server started on port 5000")
-        return server
+    import subprocess
+    import sys
     
-    # Run the async server in a separate thread
-    import threading
-    def run_websocket():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(start_server())
-        loop.run_forever()
+    logger.info("🚀 Starting standalone WebSocket server...")
     
-    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
-    websocket_thread.start()
-    logger.info("WebSocket server thread started")
+    # Start the standalone WebSocket server
+    try:
+        subprocess.Popen([
+            sys.executable, "websocket_server_fix.py"
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        logger.info("✅ WebSocket server started successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to start WebSocket server: {e}")
 
 def run_app():
     """Run the Flask app with Deepgram WebSocket server"""
