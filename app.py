@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app with SocketIO
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'medagg-secret-key'
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # Configuration
 DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY', 'ebae70e078574403bf495088b5ea043e456b7f2f')
@@ -342,6 +342,15 @@ def get_conversations():
         'active_calls': len(active_calls)
     })
 
+@app.route('/stream')
+def stream_endpoint():
+    """HTTP endpoint for /stream - redirects to WebSocket"""
+    return jsonify({
+        'message': 'WebSocket endpoint available at /stream namespace',
+        'websocket_url': f'wss://{PUBLIC_URL.replace("https://", "")}/stream',
+        'status': 'active'
+    }), 200
+
 def make_twilio_call(patient):
     """Make Twilio call"""
     try:
@@ -440,29 +449,60 @@ def handle_stop(data):
 def process_audio_with_deepgram(audio_data, call_sid):
     """Process audio with Deepgram in background thread"""
     try:
-        # This is a simplified version - in production, you'd want to use async
-        # For now, we'll just log that we received audio
         logger.info(f"🎵 Received audio data for call {call_sid}: {len(audio_data)} bytes")
         
-        # In a real implementation, you would:
-        # 1. Send audio to Deepgram API
-        # 2. Get transcription
-        # 3. Generate AI response
-        # 4. Send response back via TwiML
+        # Use Deepgram SDK 4.8.1 for real-time transcription
+        from deepgram import DeepgramClient, PrerecordedOptions, FileSource
         
-        # For now, let's simulate a response
-        ai_response = "I can hear you! This is a test response from the AI."
+        # Initialize Deepgram client
+        deepgram = DeepgramClient(DEEPGRAM_API_KEY)
         
-        # Send response back to Twilio
+        # Configure options for real-time streaming
+        options = PrerecordedOptions(
+            model="nova-2",
+            language="en",
+            smart_format=True,
+            punctuate=True,
+            diarize=False
+        )
+        
+        # Process audio data
+        response = deepgram.listen.prerecorded.v("1").transcribe_file(
+            {"buffer": audio_data, "mimetype": "audio/mulaw;rate=8000"},
+            options
+        )
+        
+        # Extract transcript
+        transcript = ""
+        if response.results and response.results.channels:
+            transcript = response.results.channels[0].alternatives[0].transcript
+        
+        if transcript:
+            logger.info(f"🎯 Deepgram Transcript: {transcript}")
+            
+            # Get AI response
+            ai_response = get_ai_response(transcript)
+            logger.info(f"🤖 AI Response: {ai_response}")
+            
+            # Send response back to Twilio
+            response_data = {
+                'event': 'twiml',
+                'twiml': f'<Response><Say voice="alice">{ai_response}</Say></Response>'
+            }
+            
+            socketio.emit('twiml', response_data, namespace='/stream')
+        else:
+            logger.info("No transcript received from Deepgram")
+        
+    except Exception as e:
+        logger.error(f"Error processing audio with Deepgram: {e}")
+        # Fallback response
+        ai_response = "I'm sorry, I didn't catch that. Could you please repeat?"
         response_data = {
             'event': 'twiml',
             'twiml': f'<Response><Say voice="alice">{ai_response}</Say></Response>'
         }
-        
         socketio.emit('twiml', response_data, namespace='/stream')
-        
-    except Exception as e:
-        logger.error(f"Error processing audio with Deepgram: {e}")
 
 if __name__ == '__main__':
     logger.info("🏥 MedAgg Healthcare POC - CARDIOLOGY VOICE AGENT (ENGLISH)")
