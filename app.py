@@ -125,17 +125,31 @@ def create_conversational_twiml(conversation_id, language="english"):
         greeting = MEDICAL_RESPONSES[language]["greeting"]
         response.say(greeting, voice='alice')
         
-        # Gather user input with speech recognition
+        # Gather user input with speech recognition (no key press required)
         gather = response.gather(
             input='speech',
             action=f'{PUBLIC_URL}/process-speech?conversation_id={conversation_id}&language={language}',
             method='POST',
-            timeout=10,
-            speech_timeout='auto'
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US' if language == 'english' else 'hi-IN' if language == 'hindi' else 'ta-IN'
         )
         
-        # Fallback if no input
-        response.say("I didn't hear anything. Please call back if you need medical assistance.", voice='alice')
+        # Fallback if no input - continue conversation instead of hanging up
+        response.say("I didn't hear anything. Please speak clearly about your health concerns.", voice='alice')
+        
+        # Try to gather again
+        gather2 = response.gather(
+            input='speech',
+            action=f'{PUBLIC_URL}/process-speech?conversation_id={conversation_id}&language={language}',
+            method='POST',
+            timeout=10,
+            speech_timeout='auto',
+            language='en-US' if language == 'english' else 'hi-IN' if language == 'hindi' else 'ta-IN'
+        )
+        
+        # Final fallback
+        response.say("Thank you for calling MedAgg Healthcare. Please call back if you need assistance.", voice='alice')
         response.hangup()
         
         return str(response)
@@ -348,16 +362,32 @@ def twiml_endpoint():
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
         
+        logger.info(f"Creating TwiML for conversation {conversation_id} in {language}")
+        
         # Create conversational TwiML
         twiml = create_conversational_twiml(conversation_id, language)
+        
+        logger.info(f"TwiML created successfully: {twiml[:200]}...")
         
         return twiml, 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
         logger.error(f"Error handling TwiML request: {e}")
         response = VoiceResponse()
-        response.say("Sorry, there was an error processing your request.")
+        response.say("Hello! This is MedAgg Healthcare. I'm here to help you with your health concerns. Please speak clearly about what you need.", voice='alice')
+        
+        # Add a simple gather for speech
+        gather = response.gather(
+            input='speech',
+            action=f'{PUBLIC_URL}/process-speech?conversation_id={conversation_id}&language={language}',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto'
+        )
+        
+        response.say("Thank you for calling MedAgg Healthcare.", voice='alice')
         response.hangup()
+        
         return str(response), 200, {'Content-Type': 'text/xml'}
 
 @app.route('/register-patient', methods=['POST'])
@@ -411,6 +441,8 @@ def process_speech():
         language = request.form.get('language', 'english')
         user_input = request.form.get('SpeechResult', '')
         
+        logger.info(f"Processing speech: {user_input} in {language}")
+        
         if not user_input:
             user_input = "I need medical help"
         
@@ -418,7 +450,7 @@ def process_speech():
         ai_response = get_ai_response(user_input, language)
         
         # Store conversation
-        if conversation_id in conversations:
+        if conversation_id and conversation_id in conversations:
             conversations[conversation_id]['messages'].append({
                 'user': user_input,
                 'ai': ai_response,
@@ -429,24 +461,44 @@ def process_speech():
         response = VoiceResponse()
         response.say(ai_response, voice='alice')
         
-        # Continue conversation
-        gather = response.gather(
-            input='speech',
-            action=f'{PUBLIC_URL}/process-speech?conversation_id={conversation_id}&language={language}',
-            method='POST',
-            timeout=10,
-            speech_timeout='auto'
-        )
-        
-        response.say("Thank you for calling MedAgg Healthcare. Have a great day!", voice='alice')
-        response.hangup()
+        # Check if this is an emergency or end of conversation
+        if any(word in user_input.lower() for word in ['goodbye', 'thank you', 'bye', 'end', 'stop']):
+            response.say("Thank you for calling MedAgg Healthcare. Take care and stay healthy!", voice='alice')
+            response.hangup()
+        else:
+            # Continue conversation with better error handling
+            gather = response.gather(
+                input='speech',
+                action=f'{PUBLIC_URL}/process-speech?conversation_id={conversation_id}&language={language}',
+                method='POST',
+                timeout=15,
+                speech_timeout='auto',
+                language='en-US' if language == 'english' else 'hi-IN' if language == 'hindi' else 'ta-IN'
+            )
+            
+            # Fallback if no response
+            response.say("I'm here to help. Please tell me more about your health concerns.", voice='alice')
+            
+            # Try one more time
+            gather2 = response.gather(
+                input='speech',
+                action=f'{PUBLIC_URL}/process-speech?conversation_id={conversation_id}&language={language}',
+                method='POST',
+                timeout=10,
+                speech_timeout='auto',
+                language='en-US' if language == 'english' else 'hi-IN' if language == 'hindi' else 'ta-IN'
+            )
+            
+            # Final fallback
+            response.say("Thank you for calling MedAgg Healthcare. Please call back if you need more assistance.", voice='alice')
+            response.hangup()
         
         return str(response), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
         logger.error(f"Error handling speech processing: {e}")
         response = VoiceResponse()
-        response.say("Thank you for calling MedAgg Healthcare.")
+        response.say("I apologize for the technical difficulty. Please call back if you need medical assistance.", voice='alice')
         response.hangup()
         return str(response), 200, {'Content-Type': 'text/xml'}
 
@@ -497,11 +549,18 @@ if __name__ == '__main__':
     logger.info("🤖 Conversational AI enabled")
     logger.info("📞 Twilio integration with public webhooks")
     logger.info("🌍 Multilingual support (English, Tamil, Hindi)")
-    logger.info("💬 Real-time AI conversations")
+    logger.info("💬 Real-time AI conversations with voice recognition")
     logger.info(f"🌐 Public URL: {PUBLIC_URL}")
     logger.info(f"📞 Webhook URL: {PUBLIC_URL}/twiml")
+    logger.info("🔧 Fixed: Voice recognition instead of key presses")
+    logger.info("🔧 Fixed: Better error handling and conversation flow")
     logger.info("=" * 70)
     
     # Get port from environment variable (Render sets this)
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    
+    try:
+        app.run(host='0.0.0.0', port=port, debug=False)
+    except Exception as e:
+        logger.error(f"Failed to start Flask app: {e}")
+        raise
