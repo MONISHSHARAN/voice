@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Start>
+        <Stream url="wss://voice-95g5.onrender.com/stream" />
+    </Start>
+    <Say voice="alice">Hello! This is MedAgg Healthcare. I'm here to help you with your health concerns. Please speak clearly about what you need.</Say>
+    <Pause length="30" />
+    <Say voice="alice">Thank you for calling MedAgg Healthcare. Please call back if you need assistance.</Say>
+    <Hangup />
+</Response>
