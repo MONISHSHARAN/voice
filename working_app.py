@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - FINAL WORKING VERSION
+MedAgg Healthcare Voice Agent - WORKING VERSION
 Outstanding voice AI system with Deepgram Nova-3 Medical
-This version fixes the WebSocket connection issue by using a different approach
 """
 
 import asyncio
