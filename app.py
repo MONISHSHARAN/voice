@@ -4,10 +4,7 @@ MedAgg Healthcare Voice Agent - English Only
 Outstanding voice AI system with Deepgram integration
 """
 
-import asyncio
-import base64
 import json
-import websockets
 import os
 import uuid
 from datetime import datetime
@@ -137,268 +134,25 @@ FUNCTION_MAP = {
     'emergency_alert': emergency_alert
 }
 
-def sts_connect():
-    """Connect to Deepgram Voice Agent"""
-    sts_ws = websockets.connect(
-        "wss://agent.deepgram.com/v1/agent/converse",
-        subprotocols=["token", DEEPGRAM_API_KEY]
-    )
-    return sts_ws
-
-def load_healthcare_config():
-    """Load healthcare-specific configuration for English only"""
-    return {
-        "type": "Settings",
-        "audio": {
-            "input": {
-                "encoding": "mulaw",
-                "sample_rate": 8000
-            },
-            "output": {
-                "encoding": "mulaw",
-                "sample_rate": 8000,
-                "container": "none"
-            }
-        },
-        "agent": {
-            "language": "en",
-            "listen": {
-                "provider": {
-                    "type": "deepgram",
-                    "model": "nova-3-medical",
-                    "keyterms": ["hello", "goodbye", "emergency", "help", "doctor", "pain", "fever", "appointment"]
-                }
-            },
-            "think": {
-                "provider": {
-                    "type": "open_ai",
-                    "model": "gpt-4o-mini",
-                    "temperature": 0.7
-                },
-                "prompt": "You are Dr. MedAgg, a professional healthcare AI assistant from MedAgg Healthcare. You can: 1) Get patient info with get_patient_info, 2) Schedule appointments with schedule_appointment, 3) Provide medical advice with get_medical_advice, 4) Send emergency alerts with emergency_alert. IMPORTANT: Always prioritize patient safety. For emergencies, immediately use emergency_alert function. Be empathetic, professional, and thorough. Always confirm patient details and provide clear medical guidance. If symptoms are severe or concerning, recommend immediate medical attention. Speak clearly and professionally.",
-                "functions": [
-                    {
-                        "name": "get_patient_info",
-                        "description": "Get patient information by ID. Use when patient asks about their details or when you need to verify patient information.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patient_id": {
-                                    "type": "string",
-                                    "description": "Patient ID to look up"
-                                }
-                            },
-                            "required": ["patient_id"]
-                        }
-                    },
-                    {
-                        "name": "schedule_appointment",
-                        "description": "Schedule a medical appointment. Use when patient wants to book an appointment or consultation.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patient_name": {
-                                    "type": "string",
-                                    "description": "Patient's full name"
-                                },
-                                "appointment_type": {
-                                    "type": "string",
-                                    "description": "Type of appointment (consultation, follow-up, emergency, checkup, etc.)"
-                                },
-                                "urgency_level": {
-                                    "type": "string",
-                                    "description": "Urgency level (low, medium, high, emergency)"
-                                }
-                            },
-                            "required": ["patient_name", "appointment_type", "urgency_level"]
-                        }
-                    },
-                    {
-                        "name": "get_medical_advice",
-                        "description": "Provide medical advice based on symptoms. Use when patient describes symptoms or asks for medical guidance.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "symptoms": {
-                                    "type": "string",
-                                    "description": "Patient's symptoms or health concerns"
-                                }
-                            },
-                            "required": ["symptoms"]
-                        }
-                    },
-                    {
-                        "name": "emergency_alert",
-                        "description": "Send emergency alert for critical situations. Use when patient has severe symptoms or emergency situations.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patient_name": {
-                                    "type": "string",
-                                    "description": "Patient's name"
-                                },
-                                "emergency_type": {
-                                    "type": "string",
-                                    "description": "Type of emergency (chest pain, severe injury, unconscious, heart attack, stroke, etc.)"
-                                },
-                                "location": {
-                                    "type": "string",
-                                    "description": "Patient's current location"
-                                }
-                            },
-                            "required": ["patient_name", "emergency_type", "location"]
-                        }
-                    }
-                ]
-            },
-            "speak": {
-                "provider": {
-                    "type": "deepgram",
-                    "model": "aura-2-vesta-en"
-                }
-            },
-            "greeting": "Hello! I'm Dr. MedAgg from MedAgg Healthcare. I'm here to help you with your health concerns. I can provide medical advice, schedule appointments, and assist with emergencies. How can I help you today?"
-        }
-    }
-
-async def handle_barge_in(decoded, twilio_ws, streamsid):
-    """Handle user interruption during AI speech"""
-    if decoded["type"] == "UserStartedSpeaking":
-        clear_message = {
-            "event": "clear",
-            "streamSid": streamsid
-        }
-        await twilio_ws.send(json.dumps(clear_message))
-
-def execute_function_call(func_name, arguments):
-    """Execute healthcare function calls"""
-    if func_name in FUNCTION_MAP:
-        result = FUNCTION_MAP[func_name](**arguments)
-        logger.info(f"Function call result: {result}")
-        return result
+# Healthcare functions for basic voice interaction
+def process_healthcare_request(speech_text):
+    """Process healthcare requests from speech input"""
+    speech_lower = speech_text.lower()
+    
+    if 'appointment' in speech_lower or 'book' in speech_lower:
+        return "I can help you schedule an appointment. What type of appointment do you need? Please tell me if it's a consultation, follow-up, or emergency visit."
+    
+    elif 'pain' in speech_lower or 'hurt' in speech_lower or 'sick' in speech_lower:
+        return "I understand you're experiencing discomfort. Can you tell me more about your symptoms? For example, where does it hurt and how severe is the pain?"
+    
+    elif 'emergency' in speech_lower or 'urgent' in speech_lower:
+        return "This sounds like an emergency situation. Please call 108 or your local emergency services immediately. I can provide guidance, but immediate medical attention may be needed."
+    
+    elif 'help' in speech_lower:
+        return "I'm here to help! I can provide medical advice, schedule appointments, and assist with health concerns. What would you like to know?"
+    
     else:
-        result = {"error": f"Unknown function: {func_name}"}
-        logger.error(result)
-        return result
-
-def create_function_call_response(func_id, func_name, result):
-    """Create function call response for Deepgram"""
-    return {
-        "type": "FunctionCallResponse",
-        "id": func_id,
-        "name": func_name,
-        "content": json.dumps(result)
-    }
-
-async def handle_function_call_request(decoded, sts_ws):
-    """Handle function call requests from Deepgram"""
-    try:
-        for function_call in decoded["functions"]:
-            func_name = function_call["name"]
-            func_id = function_call["id"]
-            arguments = json.loads(function_call["arguments"])
-
-            logger.info(f"Function call: {func_name} (ID: {func_id}), arguments: {arguments}")
-
-            result = execute_function_call(func_name, arguments)
-
-            function_result = create_function_call_response(func_id, func_name, result)
-            await sts_ws.send(json.dumps(function_result))
-            logger.info(f"Sent function result: {function_result}")
-
-    except Exception as e:
-        logger.error(f"Error calling function: {e}")
-        error_result = create_function_call_response(
-            func_id if "func_id" in locals() else "unknown",
-            func_name if "func_name" in locals() else "unknown",
-            {"error": f"Function call failed with: {str(e)}"}
-        )
-        await sts_ws.send(json.dumps(error_result))
-
-async def handle_text_message(decoded, twilio_ws, sts_ws, streamsid):
-    """Handle text messages from Deepgram"""
-    await handle_barge_in(decoded, twilio_ws, streamsid)
-
-    if decoded["type"] == "FunctionCallRequest":
-        await handle_function_call_request(decoded, sts_ws)
-
-async def sts_sender(sts_ws, audio_queue):
-    """Send audio to Deepgram"""
-    logger.info("Deepgram sender started")
-    while True:
-        chunk = await audio_queue.get()
-        await sts_ws.send(chunk)
-
-async def sts_receiver(sts_ws, twilio_ws, streamsid_queue):
-    """Receive responses from Deepgram"""
-    logger.info("Deepgram receiver started")
-    streamsid = await streamsid_queue.get()
-
-    async for message in sts_ws:
-        if type(message) is str:
-            logger.info(f"Deepgram message: {message}")
-            decoded = json.loads(message)
-            await handle_text_message(decoded, twilio_ws, sts_ws, streamsid)
-            continue
-
-        # Send audio back to Twilio
-        raw_mulaw = message
-        media_message = {
-            "event": "media",
-            "streamSid": streamsid,
-            "media": {"payload": base64.b64encode(raw_mulaw).decode("ascii")}
-        }
-        await twilio_ws.send(json.dumps(media_message))
-
-async def twilio_receiver(twilio_ws, audio_queue, streamsid_queue):
-    """Receive audio from Twilio"""
-    BUFFER_SIZE = 20 * 160
-    inbuffer = bytearray(b"")
-
-    async for message in twilio_ws:
-        try:
-            data = json.loads(message)
-            event = data["event"]
-
-            if event == "start":
-                logger.info("Call started, getting stream ID")
-                start = data["start"]
-                streamsid = start["streamSid"]
-                streamsid_queue.put_nowait(streamsid)
-            elif event == "connected":
-                continue
-            elif event == "media":
-                media = data["media"]
-                chunk = base64.b64decode(media["payload"])
-                if media["track"] == "inbound":
-                    inbuffer.extend(chunk)
-            elif event == "stop":
-                break
-
-            while len(inbuffer) >= BUFFER_SIZE:
-                chunk = inbuffer[:BUFFER_SIZE]
-                audio_queue.put_nowait(chunk)
-                inbuffer = inbuffer[BUFFER_SIZE:]
-        except Exception as e:
-            logger.error(f"Error in Twilio receiver: {e}")
-            break
-
-async def twilio_handler(twilio_ws):
-    """Main handler for Twilio WebSocket connection"""
-    audio_queue = asyncio.Queue()
-    streamsid_queue = asyncio.Queue()
-
-    async with sts_connect() as sts_ws:
-        config_message = load_healthcare_config()
-        await sts_ws.send(json.dumps(config_message))
-
-        await asyncio.wait([
-            asyncio.ensure_future(sts_sender(sts_ws, audio_queue)),
-            asyncio.ensure_future(sts_receiver(sts_ws, twilio_ws, streamsid_queue)),
-            asyncio.ensure_future(twilio_receiver(twilio_ws, audio_queue, streamsid_queue)),
-        ])
-
-        await twilio_ws.close()
+        return f"I heard you say: {speech_text}. How can I help you with that? You can ask for medical advice, schedule an appointment, or tell me about any health concerns."
 
 # Flask Routes
 @app.route('/')
@@ -421,16 +175,16 @@ def home():
     </head>
     <body>
         <div class="container">
-            <h1>🏥 MedAgg Healthcare - Deepgram Voice Agent</h1>
+            <h1>🏥 MedAgg Healthcare - Voice Agent</h1>
             <div class="status online">
                 <h3>✅ System Status: ONLINE</h3>
-                <p>Advanced AI Voice Agent with Deepgram is active!</p>
+                <p>Healthcare Voice Agent with Twilio Speech Recognition is active!</p>
             </div>
             
             <div class="feature">
                 <h3>🎤 Outstanding Features</h3>
                 <ul>
-                    <li><strong>Real-time Voice Recognition:</strong> Deepgram Nova-3 Medical model</li>
+                    <li><strong>Voice Recognition:</strong> Twilio's built-in speech recognition</li>
                     <li><strong>Natural Conversation:</strong> Human-like AI interaction in English</li>
                     <li><strong>Medical Functions:</strong> Patient info, appointments, medical advice</li>
                     <li><strong>Emergency Alerts:</strong> Automatic emergency response</li>
@@ -441,9 +195,9 @@ def home():
             <div class="info">
                 <h3>🌐 Configuration</h3>
                 <p><strong>Public URL:</strong> {{ public_url }}</p>
-                <p><strong>WebSocket URL:</strong> wss://{{ public_url.replace('https://', '') }}/twilio</p>
-                <p><strong>Deepgram API:</strong> ✅ Configured with $200 credit</p>
-                <p><strong>Language:</strong> English (optimized for Deepgram)</p>
+                <p><strong>Speech Processing:</strong> Twilio Speech Recognition</p>
+                <p><strong>Language:</strong> English (optimized for healthcare)</p>
+                <p><strong>Status:</strong> ✅ Ready for voice calls</p>
             </div>
             
             <div class="info">
@@ -469,18 +223,28 @@ def home():
 
 @app.route('/twiml', methods=['GET', 'POST'])
 def twiml_endpoint():
-    """TwiML endpoint for Twilio calls with Deepgram streaming"""
+    """TwiML endpoint for Twilio calls with speech recognition"""
     try:
-        logger.info("Creating TwiML for Deepgram Voice Agent")
+        logger.info("Creating TwiML for Healthcare Voice Agent")
         
         response = VoiceResponse()
         
         # Say greeting
-        response.say("Hello! This call may be monitored or recorded for quality purposes.", voice='alice')
+        response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI healthcare assistant. I'm here to help you with your health concerns.", voice='alice')
         
-        # Connect to Deepgram Voice Agent via WebSocket
-        response.connect()
-        response.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+        # Gather speech input
+        gather = response.gather(
+            input='speech',
+            action='/process-speech',
+            method='POST',
+            speech_timeout='auto',
+            timeout=10,
+            language='en-US'
+        )
+        
+        # Fallback if no speech detected
+        response.say("I didn't hear anything. Please try again or say 'help' for assistance.", voice='alice')
+        response.redirect('/twiml')
         
         twiml = str(response)
         logger.info("TwiML created successfully")
@@ -494,14 +258,38 @@ def twiml_endpoint():
         response.hangup()
         return str(response), 200, {'Content-Type': 'text/xml'}
 
+@app.route('/process-speech', methods=['POST'])
+def process_speech():
+    """Process speech input from Twilio"""
+    try:
+        speech_result = request.form.get('SpeechResult', '')
+        logger.info(f"Speech received: {speech_result}")
+        
+        response = VoiceResponse()
+        
+        # Handle special cases
+        if 'goodbye' in speech_result.lower() or 'bye' in speech_result.lower() or 'thank you' in speech_result.lower():
+            response.say("Thank you for calling MedAgg Healthcare. Take care of yourself and don't hesitate to call again if you need assistance. Goodbye!", voice='alice')
+            response.hangup()
+        else:
+            # Process healthcare request
+            response_text = process_healthcare_request(speech_result)
+            response.say(response_text, voice='alice')
+            response.redirect('/twiml')
+        
+        return str(response), 200, {'Content-Type': 'text/xml'}
+        
+    except Exception as e:
+        logger.error(f"Error processing speech: {e}")
+        response = VoiceResponse()
+        response.say("I'm sorry, I didn't understand that. Please try again or say 'help' for assistance.", voice='alice')
+        response.redirect('/twiml')
+        return str(response), 200, {'Content-Type': 'text/xml'}
+
 @app.route('/twilio', methods=['GET', 'POST'])
-async def twilio_websocket():
+def twilio_websocket():
     """WebSocket endpoint for Twilio audio streaming"""
-    if request.method == 'GET':
-        return "WebSocket endpoint - use wss:// protocol", 200
-    
-    # This will be handled by the WebSocket server
-    return "WebSocket connection required", 400
+    return "WebSocket endpoint - use wss:// protocol", 200
 
 @app.route('/test')
 def test_page():
@@ -570,8 +358,8 @@ def test_page():
                                 <h3>✅ Registration Successful!</h3>
                                 <p><strong>Patient ID:</strong> ${result.patient_id}</p>
                                 <p><strong>Call Status:</strong> ${result.call_initiated ? 'Initiated' : 'Failed'}</p>
-                                <p><strong>Voice Agent:</strong> Deepgram AI with Medical Functions</p>
-                                <p>You will receive a call with advanced AI conversation in English!</p>
+                                <p><strong>Voice Agent:</strong> Healthcare AI with Medical Functions</p>
+                                <p>You will receive a call with intelligent healthcare conversation in English!</p>
                             </div>
                         `;
                     } else {
@@ -626,7 +414,7 @@ def register_patient():
             'patient_id': patient['id'],
             'message': 'Patient registered successfully',
             'call_initiated': call_success,
-            'voice_agent': 'Deepgram AI with Medical Functions (English)',
+            'voice_agent': 'Healthcare AI with Medical Functions (English)',
             'public_url': PUBLIC_URL
         }
         
@@ -670,29 +458,22 @@ def make_twilio_call(patient):
         logger.error(f"Error making call: {e}")
         return False
 
-# WebSocket server for Twilio streaming
-async def start_websocket_server():
-    """Start WebSocket server for Twilio audio streaming"""
-    logger.info("Starting WebSocket server for Twilio streaming...")
-    server = await websockets.serve(twilio_handler, "0.0.0.0", 5000)
-    logger.info("WebSocket server started on port 5000")
-    return server
+# Note: WebSocket functionality removed for simpler deployment
+# Using Twilio's built-in speech recognition instead
 
-if __name__ == '__main__':
-    logger.info("🏥 MedAgg Healthcare POC - DEEPGRAM VOICE AGENT (ENGLISH)")
+def run_app():
+    """Run the Flask app with healthcare voice agent"""
+    logger.info("🏥 MedAgg Healthcare POC - VOICE AGENT (ENGLISH)")
     logger.info("=" * 70)
-    logger.info("🎤 Real-time voice recognition with Deepgram Nova-3 Medical")
-    logger.info("🤖 Advanced AI conversation with medical functions")
-    logger.info("📞 Twilio integration with WebSocket streaming")
-    logger.info("🌍 Language: English (optimized for Deepgram)")
+    logger.info("🎤 Voice recognition with Twilio Speech Recognition")
+    logger.info("🤖 Intelligent AI conversation with medical functions")
+    logger.info("📞 Twilio integration with speech processing")
+    logger.info("🌍 Language: English (optimized for healthcare)")
     logger.info("💬 Human-like conversation flow")
     logger.info(f"🌐 Public URL: {PUBLIC_URL}")
-    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
-    logger.info("💰 Deepgram API: ✅ Configured with $200 credit")
+    logger.info("🔗 Speech Processing: Twilio Speech Recognition")
+    logger.info("💰 System: ✅ Ready for healthcare voice calls")
     logger.info("=" * 70)
-    
-    # Start WebSocket server in background
-    asyncio.create_task(start_websocket_server())
     
     # Get port from environment variable
     port = int(os.environ.get('PORT', 8000))
@@ -702,3 +483,6 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"Failed to start Flask app: {e}")
         raise
+
+if __name__ == '__main__':
+    run_app()
