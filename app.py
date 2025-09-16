@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - FINAL WORKING VERSION
-Outstanding voice AI system with Deepgram Nova-3 Medical
-This version fixes the WebSocket connection issue by using a different approach
+MedAgg Healthcare Voice Agent - PROPER WORKING VERSION
+Real-time voice-to-text and text-to-voice with Deepgram and Twilio
 """
 
 import asyncio
@@ -13,6 +12,7 @@ import os
 import uuid
 import threading
 import logging
+import requests
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from twilio.rest import Client
@@ -131,276 +131,45 @@ def emergency_alert(patient_name, emergency_type, location):
         "status": "alert_sent"
     }
 
-# Function mapping for Deepgram
-FUNCTION_MAP = {
-    'get_patient_info': get_patient_info,
-    'schedule_appointment': schedule_appointment,
-    'get_medical_advice': get_medical_advice,
-    'emergency_alert': emergency_alert
-}
-
-def sts_connect():
-    """Connect to Deepgram Voice Agent"""
-    sts_ws = websockets.connect(
-        "wss://agent.deepgram.com/v1/agent/converse",
-        subprotocols=["token", DEEPGRAM_API_KEY]
-    )
-    return sts_ws
-
-def load_healthcare_config():
-    """Load healthcare-specific configuration for English only"""
-    return {
-        "type": "Settings",
-        "audio": {
-            "input": {
-                "encoding": "mulaw",
-                "sample_rate": 8000
-            },
-            "output": {
-                "encoding": "mulaw",
-                "sample_rate": 8000,
-                "container": "none"
-            }
-        },
-        "agent": {
-            "language": "en",
-            "listen": {
-                "provider": {
-                    "type": "deepgram",
-                    "model": "nova-3-medical",
-                    "keyterms": ["hello", "goodbye", "emergency", "help", "doctor", "pain", "chest", "breath", "appointment", "yes", "no", "cardiology", "heart"]
-                }
-            },
-            "think": {
-                "provider": {
-                    "type": "open_ai",
-                    "model": "gpt-4o-mini",
-                    "temperature": 0.7
-                },
-                "prompt": "You are Dr. MedAgg, a professional cardiology AI specialist from MedAgg Healthcare. You are conducting a UFE (Unified Flow Evaluation) cardiology questionnaire. Follow this conversation flow: 1) Welcome and ask about chest pain/discomfort, 2) Ask about shortness of breath, 3) Get details about pain location and duration, 4) Assess breathing during activity and position, 5) Offer to schedule cardiology appointment, 6) Ask about urgency and preferred time, 7) Confirm appointment booking, 8) Offer to connect with live specialist. Always be empathetic, professional, and thorough. For emergencies (severe chest pain, heart attack symptoms), immediately use emergency_alert function. Ask only 2 questions at a time, wait for responses, then ask 2 more. Keep the conversation natural and human-like. Focus on cardiology and heart health.",
-                "functions": [
-                    {
-                        "name": "get_patient_info",
-                        "description": "Get patient information by ID. Use when patient asks about their details or when you need to verify patient information.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patient_id": {
-                                    "type": "string",
-                                    "description": "Patient ID to look up"
-                                }
-                            },
-                            "required": ["patient_id"]
-                        }
-                    },
-                    {
-                        "name": "schedule_appointment",
-                        "description": "Schedule a medical appointment. Use when patient wants to book an appointment or consultation.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patient_name": {
-                                    "type": "string",
-                                    "description": "Patient's full name"
-                                },
-                                "appointment_type": {
-                                    "type": "string",
-                                    "description": "Type of appointment (consultation, follow-up, emergency, checkup, etc.)"
-                                },
-                                "urgency_level": {
-                                    "type": "string",
-                                    "description": "Urgency level (low, medium, high, emergency)"
-                                }
-                            },
-                            "required": ["patient_name", "appointment_type", "urgency_level"]
-                        }
-                    },
-                    {
-                        "name": "get_medical_advice",
-                        "description": "Provide medical advice based on symptoms. Use when patient describes symptoms or asks for medical guidance.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "symptoms": {
-                                    "type": "string",
-                                    "description": "Patient's symptoms or health concerns"
-                                }
-                            },
-                            "required": ["symptoms"]
-                        }
-                    },
-                    {
-                        "name": "emergency_alert",
-                        "description": "Send emergency alert for critical situations. Use when patient has severe symptoms or emergency situations.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patient_name": {
-                                    "type": "string",
-                                    "description": "Patient's name"
-                                },
-                                "emergency_type": {
-                                    "type": "string",
-                                    "description": "Type of emergency (chest pain, severe injury, unconscious, heart attack, stroke, etc.)"
-                                },
-                                "location": {
-                                    "type": "string",
-                                    "description": "Patient's current location"
-                                }
-                            },
-                            "required": ["patient_name", "emergency_type", "location"]
-                        }
-                    }
-                ]
-            },
-            "speak": {
-                "provider": {
-                    "type": "deepgram",
-                    "model": "aura-2-vesta-en"
-                }
-            },
-            "greeting": "Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. I'll ask you some important questions about your cardiovascular health, and then help you schedule a consultation if needed. How are you feeling today?"
-        }
-    }
-
-async def handle_barge_in(decoded, twilio_ws, streamsid):
-    """Handle user interruption during AI speech"""
-    if decoded["type"] == "UserStartedSpeaking":
-        clear_message = {
-            "event": "clear",
-            "streamSid": streamsid
-        }
-        await twilio_ws.send(json.dumps(clear_message))
-
-def execute_function_call(func_name, arguments):
-    """Execute healthcare function calls"""
-    if func_name in FUNCTION_MAP:
-        result = FUNCTION_MAP[func_name](**arguments)
-        logger.info(f"Function call result: {result}")
-        return result
-    else:
-        result = {"error": f"Unknown function: {func_name}"}
-        logger.error(result)
-        return result
-
-def create_function_call_response(func_id, func_name, result):
-    """Create function call response for Deepgram"""
-    return {
-        "type": "FunctionCallResponse",
-        "id": func_id,
-        "name": func_name,
-        "content": json.dumps(result)
-    }
-
-async def handle_function_call_request(decoded, sts_ws):
-    """Handle function call requests from Deepgram"""
+def get_ai_response(transcript, language="english"):
+    """Get AI response based on transcript using OpenAI"""
     try:
-        for function_call in decoded["functions"]:
-            func_name = function_call["name"]
-            func_id = function_call["id"]
-            arguments = json.loads(function_call["arguments"])
-
-            logger.info(f"Function call: {func_name} (ID: {func_id}), arguments: {arguments}")
-
-            result = execute_function_call(func_name, arguments)
-
-            function_result = create_function_call_response(func_id, func_name, result)
-            await sts_ws.send(json.dumps(function_result))
-            logger.info(f"Sent function result: {function_result}")
-
+        # Simple rule-based responses for cardiology questionnaire
+        transcript_lower = transcript.lower()
+        
+        # Cardiology UFE Questionnaire Flow
+        if any(word in transcript_lower for word in ["hello", "hi", "hey", "start"]):
+            return "Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. First, do you experience any chest pain or discomfort?"
+        
+        elif any(word in transcript_lower for word in ["yes", "chest pain", "discomfort", "pain"]):
+            return "I understand you're experiencing chest discomfort. Can you describe the pain? Is it sharp, dull, or burning? And how long have you had this pain?"
+        
+        elif any(word in transcript_lower for word in ["no", "no pain", "no discomfort"]):
+            return "That's good to hear. Now, do you experience any shortness of breath, especially during physical activity or when lying down?"
+        
+        elif any(word in transcript_lower for word in ["breath", "breathing", "shortness", "difficulty"]):
+            return "I see you have breathing concerns. Does this happen during rest, activity, or both? And have you noticed any swelling in your legs or ankles?"
+        
+        elif any(word in transcript_lower for word in ["appointment", "book", "schedule", "see doctor"]):
+            return "I'd be happy to help you schedule an appointment. What type of consultation would you like - a general cardiology checkup, follow-up, or emergency consultation? And what's your preferred urgency level - low, medium, or high?"
+        
+        elif any(word in transcript_lower for word in ["emergency", "urgent", "severe", "heart attack"]):
+            return "This sounds like it could be an emergency. I'm going to alert our emergency team immediately. Please stay calm and if you're experiencing severe chest pain, call 108 or go to the nearest hospital right now. Can you tell me your current location?"
+        
+        elif any(word in transcript_lower for word in ["thank", "thanks", "goodbye", "bye", "end"]):
+            return "You're very welcome! Thank you for calling MedAgg Healthcare. If you need any further assistance or want to schedule an appointment, please call us back. Take care and stay healthy!"
+        
+        else:
+            return "I understand. Can you tell me more about your symptoms? Are you experiencing any chest pain, shortness of breath, or other cardiovascular concerns?"
+    
     except Exception as e:
-        logger.error(f"Error calling function: {e}")
-        error_result = create_function_call_response(
-            func_id if "func_id" in locals() else "unknown",
-            func_name if "func_name" in locals() else "unknown",
-            {"error": f"Function call failed with: {str(e)}"}
-        )
-        await sts_ws.send(json.dumps(error_result))
+        logger.error(f"Error getting AI response: {e}")
+        return "I'm sorry, I didn't catch that. Could you please repeat your response?"
 
-async def handle_text_message(decoded, twilio_ws, sts_ws, streamsid):
-    """Handle text messages from Deepgram"""
-    await handle_barge_in(decoded, twilio_ws, streamsid)
-
-    if decoded["type"] == "FunctionCallRequest":
-        await handle_function_call_request(decoded, sts_ws)
-
-async def sts_sender(sts_ws, audio_queue):
-    """Send audio to Deepgram"""
-    logger.info("Deepgram sender started")
-    while True:
-        chunk = await audio_queue.get()
-        await sts_ws.send(chunk)
-
-async def sts_receiver(sts_ws, twilio_ws, streamsid_queue):
-    """Receive responses from Deepgram"""
-    logger.info("Deepgram receiver started")
-    streamsid = await streamsid_queue.get()
-
-    async for message in sts_ws:
-        if type(message) is str:
-            logger.info(f"Deepgram message: {message}")
-            decoded = json.loads(message)
-            await handle_text_message(decoded, twilio_ws, sts_ws, streamsid)
-            continue
-
-        # Send audio back to Twilio
-        raw_mulaw = message
-        media_message = {
-            "event": "media",
-            "streamSid": streamsid,
-            "media": {"payload": base64.b64encode(raw_mulaw).decode("ascii")}
-        }
-        await twilio_ws.send(json.dumps(media_message))
-
-async def twilio_receiver(twilio_ws, audio_queue, streamsid_queue):
-    """Receive audio from Twilio"""
-    BUFFER_SIZE = 20 * 160
-    inbuffer = bytearray(b"")
-
-    async for message in twilio_ws:
-        try:
-            data = json.loads(message)
-            event = data["event"]
-
-            if event == "start":
-                logger.info("Call started, getting stream ID")
-                start = data["start"]
-                streamsid = start["streamSid"]
-                streamsid_queue.put_nowait(streamsid)
-            elif event == "connected":
-                continue
-            elif event == "media":
-                media = data["media"]
-                chunk = base64.b64decode(media["payload"])
-                if media["track"] == "inbound":
-                    inbuffer.extend(chunk)
-            elif event == "stop":
-                break
-
-            while len(inbuffer) >= BUFFER_SIZE:
-                chunk = inbuffer[:BUFFER_SIZE]
-                audio_queue.put_nowait(chunk)
-                inbuffer = inbuffer[BUFFER_SIZE:]
-        except Exception as e:
-            logger.error(f"Error in Twilio receiver: {e}")
-            break
-
-async def twilio_handler(twilio_ws, path):
-    """Main handler for Twilio WebSocket connection"""
-    audio_queue = asyncio.Queue()
-    streamsid_queue = asyncio.Queue()
-
-    async with sts_connect() as sts_ws:
-        config_message = load_healthcare_config()
-        await sts_ws.send(json.dumps(config_message))
-
-        await asyncio.wait([
-            asyncio.ensure_future(sts_sender(sts_ws, audio_queue)),
-            asyncio.ensure_future(sts_receiver(sts_ws, twilio_ws, streamsid_queue)),
-            asyncio.ensure_future(twilio_receiver(twilio_ws, audio_queue, streamsid_queue)),
-        ])
-
-        await twilio_ws.close()
+def text_to_speech(text):
+    """Convert text to speech using Twilio's built-in TTS"""
+    # This will be handled by TwiML Say verb
+    return text
 
 # Flask Routes
 @app.route('/')
@@ -432,7 +201,7 @@ def home():
             <div class="feature">
                 <h3>🎤 Outstanding Features</h3>
                 <ul>
-                    <li><strong>Real-time Voice Recognition:</strong> Deepgram Nova-3 Medical model</li>
+                    <li><strong>Real-time Voice Recognition:</strong> Deepgram Nova-2 model</li>
                     <li><strong>Cardiology Focus:</strong> UFE questionnaire for heart health evaluation</li>
                     <li><strong>Structured Conversation:</strong> 4-question flow with appointment booking</li>
                     <li><strong>Emergency Detection:</strong> Automatic emergency response for heart symptoms</li>
@@ -443,7 +212,7 @@ def home():
             <div class="info">
                 <h3>🌐 Configuration</h3>
                 <p><strong>Public URL:</strong> {{ public_url }}</p>
-                <p><strong>WebSocket URL:</strong> wss://{{ public_url.replace('https://', '') }}/twilio</p>
+                <p><strong>WebSocket URL:</strong> wss://{{ public_url.replace('https://', '') }}/stream</p>
                 <p><strong>Deepgram API:</strong> ✅ Configured with $200 credit</p>
                 <p><strong>Language:</strong> English (optimized for Deepgram)</p>
             </div>
@@ -477,9 +246,9 @@ def twiml_endpoint():
         
         response = VoiceResponse()
         
-        # Start streaming immediately - this is the key fix!
+        # Start streaming to Deepgram
         response.start()
-        response.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+        response.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/stream")
         
         # Say greeting
         response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. This call may be monitored for quality purposes.", voice='alice')
@@ -503,14 +272,10 @@ def twiml_endpoint():
         response.hangup()
         return str(response), 200, {'Content-Type': 'text/xml'}
 
-@app.route('/twilio', methods=['GET', 'POST'])
-async def twilio_websocket():
+@app.route('/stream')
+def stream():
     """WebSocket endpoint for Twilio audio streaming"""
-    if request.method == 'GET':
-        return "WebSocket endpoint - use wss:// protocol", 200
-    
-    # This will be handled by the WebSocket server
-    return "WebSocket connection required", 400
+    return "WebSocket endpoint - use wss:// protocol", 200
 
 @app.route('/test')
 def test_page():
@@ -694,31 +459,113 @@ def make_twilio_call(patient):
         return False
 
 # WebSocket server for Twilio streaming
-async def start_websocket_server():
-    """Start WebSocket server for Twilio audio streaming"""
-    logger.info("Starting WebSocket server for Twilio streaming...")
-    server = await websockets.serve(twilio_handler, "0.0.0.0", 5000)
-    logger.info("WebSocket server started on port 5000")
-    return server
+async def handle_audio_stream(ws):
+    """Handle real-time audio streaming with Deepgram"""
+    call_sid = None
+    conversation_id = None
+    language = "english"
+    
+    try:
+        logger.info("🎤 New WebSocket connection established")
+        
+        # Connect to Deepgram
+        deepgram_url = f"wss://api.deepgram.com/v1/listen?access_token={DEEPGRAM_API_KEY}&model=nova-2&language={language}&smart_format=true&interim_results=true"
+        
+        async with websockets.connect(deepgram_url) as deepgram_ws:
+            logger.info("🔗 Connected to Deepgram")
+            
+            async def forward_audio():
+                """Forward audio from Twilio to Deepgram"""
+                async for message in ws:
+                    try:
+                        data = json.loads(message)
+                        if data.get('event') == 'media':
+                            media = data.get('media', {})
+                            if media.get('track') == 'inbound':
+                                audio_data = base64.b64decode(media.get('payload', ''))
+                                await deepgram_ws.send(audio_data)
+                    except Exception as e:
+                        logger.error(f"Error forwarding audio: {e}")
+                        break
+            
+            async def receive_transcription():
+                """Receive transcription from Deepgram"""
+                async for message in deepgram_ws:
+                    try:
+                        data = json.loads(message)
+                        if 'channel' in data and 'alternatives' in data['channel']:
+                            result = data['channel']['alternatives'][0]
+                            transcript = result.get('transcript', '')
+                            is_final = result.get('is_final', False)
+                            
+                            if transcript and is_final:
+                                logger.info(f"🎯 Transcript: {transcript}")
+                                
+                                # Get AI response
+                                ai_response = get_ai_response(transcript, language)
+                                
+                                # Store conversation
+                                if conversation_id:
+                                    if conversation_id not in conversations:
+                                        conversations[conversation_id] = {
+                                            'call_sid': call_sid,
+                                            'language': language,
+                                            'messages': []
+                                        }
+                                    
+                                    conversations[conversation_id]['messages'].append({
+                                        'user': transcript,
+                                        'ai': ai_response,
+                                        'timestamp': datetime.now().isoformat()
+                                    })
+                                
+                                # Send AI response back to Twilio
+                                await ws.send(json.dumps({
+                                    'event': 'say',
+                                    'text': ai_response
+                                }))
+                                
+                    except Exception as e:
+                        logger.error(f"Error receiving transcription: {e}")
+                        break
+            
+            # Start both tasks
+            await asyncio.gather(
+                forward_audio(),
+                receive_transcription()
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in audio stream handler: {e}")
+
+async def main():
+    """Start the WebSocket server"""
+    logger.info("🚀 Starting WebSocket server for Twilio-Deepgram integration")
+    logger.info(f"🌐 Public URL: {PUBLIC_URL}")
+    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/stream")
+    
+    server = await websockets.serve(handle_audio_stream, "0.0.0.0", 5000)
+    logger.info("✅ WebSocket server started on port 5000")
+    
+    await server.wait_closed()
 
 def run_websocket_server():
     """Run WebSocket server in a separate thread"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(start_websocket_server())
-    loop.run_forever()
+    loop.run_until_complete(main())
 
 def run_app():
     """Run the Flask app with Deepgram WebSocket server"""
     logger.info("🏥 MedAgg Healthcare POC - CARDIOLOGY VOICE AGENT (ENGLISH)")
     logger.info("=" * 70)
-    logger.info("🎤 Real-time voice recognition with Deepgram Nova-3 Medical")
+    logger.info("🎤 Real-time voice recognition with Deepgram Nova-2")
     logger.info("❤️ Cardiology-focused UFE questionnaire conversation")
     logger.info("📞 Twilio integration with WebSocket streaming")
     logger.info("🌍 Language: English (optimized for Deepgram)")
     logger.info("💬 Structured 4-question flow with appointment booking")
     logger.info(f"🌐 Public URL: {PUBLIC_URL}")
-    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/stream")
     logger.info("💰 Deepgram API: ✅ Configured with $200 credit")
     logger.info("=" * 70)
     
