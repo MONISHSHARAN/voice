@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - PROPER WORKING VERSION
+MedAgg Healthcare Voice Agent - COMPLETE WORKING VERSION
 Real-time voice-to-text and text-to-voice with Deepgram and Twilio
 """
 
