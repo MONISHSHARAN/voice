@@ -385,20 +385,34 @@ async def twilio_receiver(twilio_ws, audio_queue, streamsid_queue):
 
 async def twilio_handler(twilio_ws):
     """Main handler for Twilio WebSocket connection"""
-    audio_queue = asyncio.Queue()
-    streamsid_queue = asyncio.Queue()
+    try:
+        logger.info("🔗 New Twilio WebSocket connection established")
+        
+        audio_queue = asyncio.Queue()
+        streamsid_queue = asyncio.Queue()
 
-    async with sts_connect() as sts_ws:
-        config_message = load_healthcare_config()
-        await sts_ws.send(json.dumps(config_message))
+        async with sts_connect() as sts_ws:
+            logger.info("🔗 Connected to Deepgram Voice Agent")
+            
+            config_message = load_healthcare_config()
+            await sts_ws.send(json.dumps(config_message))
+            logger.info("📤 Sent configuration to Deepgram")
 
-        await asyncio.wait([
-            asyncio.ensure_future(sts_sender(sts_ws, audio_queue)),
-            asyncio.ensure_future(sts_receiver(sts_ws, twilio_ws, streamsid_queue)),
-            asyncio.ensure_future(twilio_receiver(twilio_ws, audio_queue, streamsid_queue)),
-        ])
+            await asyncio.wait([
+                asyncio.ensure_future(sts_sender(sts_ws, audio_queue)),
+                asyncio.ensure_future(sts_receiver(sts_ws, twilio_ws, streamsid_queue)),
+                asyncio.ensure_future(twilio_receiver(twilio_ws, audio_queue, streamsid_queue)),
+            ])
 
+        logger.info("🔌 WebSocket connection closed")
         await twilio_ws.close()
+        
+    except Exception as e:
+        logger.error(f"❌ Error in WebSocket handler: {e}")
+        try:
+            await twilio_ws.close()
+        except:
+            pass
 
 # Flask Routes
 @app.route('/')
@@ -475,15 +489,13 @@ def twiml_endpoint():
         
         response = VoiceResponse()
         
-        # Say greeting
-        response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. This call may be monitored for quality purposes.", voice='alice')
-        
-        # Connect to Deepgram Voice Agent via WebSocket
+        # Connect directly to Deepgram Voice Agent via WebSocket
         response.connect()
         response.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/twilio")
         
         twiml = str(response)
         logger.info("TwiML created successfully")
+        logger.info(f"WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
         
         return twiml, 200, {'Content-Type': 'text/xml'}
         
@@ -498,10 +510,36 @@ def twiml_endpoint():
 async def twilio_websocket():
     """WebSocket endpoint for Twilio audio streaming"""
     if request.method == 'GET':
-        return "WebSocket endpoint - use wss:// protocol", 200
+        return f"WebSocket endpoint ready - use wss://{PUBLIC_URL.replace('https://', '')}/twilio", 200
     
     # This will be handled by the WebSocket server
     return "WebSocket connection required", 400
+
+@app.route('/test-websocket')
+def test_websocket():
+    """Test WebSocket connectivity"""
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>WebSocket Test</title>
+    </head>
+    <body>
+        <h1>WebSocket Test</h1>
+        <p>Testing connection to: wss://{PUBLIC_URL.replace('https://', '')}/twilio</p>
+        <div id="status">Connecting...</div>
+        <script>
+            const ws = new WebSocket('wss://{PUBLIC_URL.replace('https://', '')}/twilio');
+            ws.onopen = function() {{
+                document.getElementById('status').innerHTML = '✅ WebSocket Connected!';
+            }};
+            ws.onerror = function(error) {{
+                document.getElementById('status').innerHTML = '❌ WebSocket Error: ' + error;
+            }};
+        </script>
+    </body>
+    </html>
+    '''
 
 @app.route('/test')
 def test_page():
@@ -685,12 +723,25 @@ def make_twilio_call(patient):
         return False
 
 # WebSocket server for Twilio streaming
-async def start_websocket_server():
+def start_websocket_server():
     """Start WebSocket server for Twilio audio streaming"""
-    logger.info("Starting WebSocket server for Twilio streaming...")
-    server = await websockets.serve(twilio_handler, "0.0.0.0", 5000)
-    logger.info("WebSocket server started on port 5000")
-    return server
+    async def start_server():
+        logger.info("Starting WebSocket server for Twilio streaming...")
+        server = await websockets.serve(twilio_handler, "0.0.0.0", 5000)
+        logger.info("WebSocket server started on port 5000")
+        return server
+    
+    # Run the async server in a separate thread
+    import threading
+    def run_websocket():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(start_server())
+        loop.run_forever()
+    
+    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
+    websocket_thread.start()
+    logger.info("WebSocket server thread started")
 
 def run_app():
     """Run the Flask app with Deepgram WebSocket server"""
@@ -706,10 +757,8 @@ def run_app():
     logger.info("💰 Deepgram API: ✅ Configured with $200 credit")
     logger.info("=" * 70)
     
-    # Start WebSocket server in background
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.create_task(start_websocket_server())
+    # Start WebSocket server
+    start_websocket_server()
     
     # Get port from environment variable
     port = int(os.environ.get('PORT', 8000))
