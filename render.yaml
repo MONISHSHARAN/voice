@@ -2,6 +2,7 @@ services:
   - type: web
     name: medagg-healthcare
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     envVars:
@@ -11,5 +12,3 @@ services:
         value: bbf7abc794d8f0eb9538350b501d033f
       - key: TWILIO_PHONE_NUMBER
         value: +17752586467
-      - key: PORT
-        value: 8000
