@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - English Only
-Outstanding voice AI system with Deepgram integration
+MedAgg Healthcare Voice Agent - Deepgram Integration
+Outstanding voice AI system with real-time conversation
 """
 
 import asyncio
@@ -69,7 +69,7 @@ def schedule_appointment(patient_name, appointment_type, urgency_level):
         "created_at": datetime.now().isoformat()
     }
     
-    # Store appointment
+    # Store appointment (in real system, this would go to database)
     if 'appointments' not in conversations:
         conversations['appointments'] = {}
     conversations['appointments'][appointment_id] = appointment
@@ -80,31 +80,48 @@ def schedule_appointment(patient_name, appointment_type, urgency_level):
         "status": "scheduled"
     }
 
-def get_medical_advice(symptoms):
+def get_medical_advice(symptoms, language="english"):
     """Provide medical advice based on symptoms"""
     advice_responses = {
-        "headache": "For headaches: rest in a dark room, apply cold compress, stay hydrated. If severe or persistent, consult a doctor immediately.",
-        "fever": "For fever: rest, stay hydrated, use fever reducers if appropriate. If temperature is very high or persistent, seek medical attention.",
-        "cough": "For cough: stay hydrated, use throat lozenges, avoid irritants. If cough is severe or with blood, see a doctor.",
-        "nausea": "For nausea: eat small, bland meals, avoid strong smells, stay hydrated. If severe or with vomiting, seek medical help.",
-        "chest_pain": "Chest pain requires immediate medical attention. Call emergency services or go to the nearest hospital immediately.",
-        "emergency": "This appears to be an emergency situation. Please call 108 or your local emergency services immediately. I can help you, but immediate medical assistance is needed.",
-        "default": "Please describe your symptoms in detail. If symptoms are severe or concerning, consult a healthcare professional immediately."
+        "english": {
+            "headache": "For headaches: rest in a dark room, apply cold compress, stay hydrated. If severe or persistent, consult a doctor immediately.",
+            "fever": "For fever: rest, stay hydrated, use fever reducers if appropriate. If temperature is very high or persistent, seek medical attention.",
+            "cough": "For cough: stay hydrated, use throat lozenges, avoid irritants. If cough is severe or with blood, see a doctor.",
+            "nausea": "For nausea: eat small, bland meals, avoid strong smells, stay hydrated. If severe or with vomiting, seek medical help.",
+            "chest_pain": "Chest pain requires immediate medical attention. Call emergency services or go to the nearest hospital immediately.",
+            "default": "Please describe your symptoms in detail. If symptoms are severe or concerning, consult a healthcare professional immediately."
+        },
+        "tamil": {
+            "headache": "தலைவலிக்கு: இருட்டான அறையில் ஓய்வு எடுக்கவும், குளிர்ந்த கம்ப்ரஸ் வைக்கவும், நீரை அதிகம் குடிக்கவும். கடுமையான அல்லது தொடர்ந்தால் மருத்துவரை பார்க்கவும்.",
+            "fever": "காய்ச்சலுக்கு: ஓய்வு எடுக்கவும், நீரை அதிகம் குடிக்கவும், தேவையானால் காய்ச்சல் குறைப்பு மருந்துகள் எடுக்கவும். மிக அதிக வெப்பநிலை அல்லது தொடர்ந்தால் மருத்துவ உதவி தேவை.",
+            "cough": "இருமலுக்கு: நீரை அதிகம் குடிக்கவும், தொண்டை லொசெஞ்சஸ் பயன்படுத்தவும், எரிச்சலூட்டும் பொருட்களை தவிர்க்கவும். கடுமையான அல்லது இரத்தத்துடன் இருந்தால் மருத்துவரை பார்க்கவும்.",
+            "nausea": "வாந்தி உணர்வுக்கு: சிறிய, சாதாரண உணவு சாப்பிடவும், வலுவான வாசனைகளை தவிர்க்கவும், நீரை அதிகம் குடிக்கவும். கடுமையான அல்லது வாந்தியுடன் இருந்தால் மருத்துவ உதவி தேவை.",
+            "chest_pain": "மார்பு வலிக்கு உடனடியாக மருத்துவ உதவி தேவை. அவசரகால சேவையை அழைக்கவும் அல்லது அருகிலுள்ள மருத்துவமனைக்கு செல்லவும்.",
+            "default": "உங்கள் அறிகுறிகளை விரிவாக விளக்குங்கள். அறிகுறிகள் கடுமையான அல்லது கவலைக்குரியதாக இருந்தால் உடனடியாக மருத்துவ நிபுணரை அணுகவும்."
+        },
+        "hindi": {
+            "headache": "सिरदर्द के लिए: अंधेरे कमरे में आराम करें, ठंडा कंप्रेस लगाएं, पानी पिएं। यदि गंभीर या लगातार है तो तुरंत डॉक्टर से मिलें।",
+            "fever": "बुखार के लिए: आराम करें, पानी पिएं, उचित हो तो बुखार कम करने वाली दवा लें। यदि तापमान बहुत अधिक या लगातार है तो चिकित्सा सहायता लें।",
+            "cough": "खांसी के लिए: पानी पिएं, गले की गोलियां लें, परेशान करने वाली चीजों से बचें। यदि गंभीर या खून के साथ है तो डॉक्टर से मिलें।",
+            "nausea": "मतली के लिए: छोटे, हल्के भोजन खाएं, तेज गंध से बचें, पानी पिएं। यदि गंभीर या उल्टी के साथ है तो चिकित्सा सहायता लें।",
+            "chest_pain": "छाती में दर्द के लिए तत्काल चिकित्सा सहायता की आवश्यकता है। आपातकालीन सेवा को कॉल करें या निकटतम अस्पताल जाएं।",
+            "default": "कृपया अपने लक्षणों का विस्तार से वर्णन करें। यदि लक्षण गंभीर या चिंताजनक हैं तो तुरंत स्वास्थ्य पेशेवर से सलाह लें।"
+        }
     }
     
     symptoms_lower = symptoms.lower()
-    if 'chest pain' in symptoms_lower or 'heart' in symptoms_lower or 'emergency' in symptoms_lower:
-        return advice_responses["emergency"]
+    if 'chest pain' in symptoms_lower or 'heart' in symptoms_lower:
+        return advice_responses[language]["chest_pain"]
     elif 'headache' in symptoms_lower:
-        return advice_responses["headache"]
+        return advice_responses[language]["headache"]
     elif 'fever' in symptoms_lower:
-        return advice_responses["fever"]
+        return advice_responses[language]["fever"]
     elif 'cough' in symptoms_lower:
-        return advice_responses["cough"]
+        return advice_responses[language]["cough"]
     elif 'nausea' in symptoms_lower or 'vomit' in symptoms_lower:
-        return advice_responses["nausea"]
+        return advice_responses[language]["nausea"]
     else:
-        return advice_responses["default"]
+        return advice_responses[language]["default"]
 
 def emergency_alert(patient_name, emergency_type, location):
     """Send emergency alert"""
@@ -146,7 +163,7 @@ def sts_connect():
     return sts_ws
 
 def load_healthcare_config():
-    """Load healthcare-specific configuration for English only"""
+    """Load healthcare-specific configuration"""
     return {
         "type": "Settings",
         "audio": {
@@ -166,7 +183,7 @@ def load_healthcare_config():
                 "provider": {
                     "type": "deepgram",
                     "model": "nova-3-medical",
-                    "keyterms": ["hello", "goodbye", "emergency", "help", "doctor", "pain", "fever", "appointment"]
+                    "keyterms": ["hello", "goodbye", "emergency", "help", "doctor"]
                 }
             },
             "think": {
@@ -175,7 +192,7 @@ def load_healthcare_config():
                     "model": "gpt-4o-mini",
                     "temperature": 0.7
                 },
-                "prompt": "You are Dr. MedAgg, a professional healthcare AI assistant from MedAgg Healthcare. You can: 1) Get patient info with get_patient_info, 2) Schedule appointments with schedule_appointment, 3) Provide medical advice with get_medical_advice, 4) Send emergency alerts with emergency_alert. IMPORTANT: Always prioritize patient safety. For emergencies, immediately use emergency_alert function. Be empathetic, professional, and thorough. Always confirm patient details and provide clear medical guidance. If symptoms are severe or concerning, recommend immediate medical attention. Speak clearly and professionally.",
+                "prompt": "You are Dr. MedAgg, a professional healthcare AI assistant from MedAgg Healthcare. You can: 1) Get patient info with get_patient_info, 2) Schedule appointments with schedule_appointment, 3) Provide medical advice with get_medical_advice, 4) Send emergency alerts with emergency_alert. IMPORTANT: Always prioritize patient safety. For emergencies, immediately use emergency_alert function. Be empathetic, professional, and thorough. Always confirm patient details and provide clear medical guidance. If symptoms are severe or concerning, recommend immediate medical attention.",
                 "functions": [
                     {
                         "name": "get_patient_info",
@@ -203,7 +220,7 @@ def load_healthcare_config():
                                 },
                                 "appointment_type": {
                                     "type": "string",
-                                    "description": "Type of appointment (consultation, follow-up, emergency, checkup, etc.)"
+                                    "description": "Type of appointment (consultation, follow-up, emergency, etc.)"
                                 },
                                 "urgency_level": {
                                     "type": "string",
@@ -222,6 +239,10 @@ def load_healthcare_config():
                                 "symptoms": {
                                     "type": "string",
                                     "description": "Patient's symptoms or health concerns"
+                                },
+                                "language": {
+                                    "type": "string",
+                                    "description": "Language for response (english, tamil, hindi)"
                                 }
                             },
                             "required": ["symptoms"]
@@ -239,7 +260,7 @@ def load_healthcare_config():
                                 },
                                 "emergency_type": {
                                     "type": "string",
-                                    "description": "Type of emergency (chest pain, severe injury, unconscious, heart attack, stroke, etc.)"
+                                    "description": "Type of emergency (chest pain, severe injury, unconscious, etc.)"
                                 },
                                 "location": {
                                     "type": "string",
@@ -431,10 +452,10 @@ def home():
                 <h3>🎤 Outstanding Features</h3>
                 <ul>
                     <li><strong>Real-time Voice Recognition:</strong> Deepgram Nova-3 Medical model</li>
-                    <li><strong>Natural Conversation:</strong> Human-like AI interaction in English</li>
+                    <li><strong>Natural Conversation:</strong> Human-like AI interaction</li>
                     <li><strong>Medical Functions:</strong> Patient info, appointments, medical advice</li>
                     <li><strong>Emergency Alerts:</strong> Automatic emergency response</li>
-                    <li><strong>Professional Healthcare AI:</strong> Dr. MedAgg assistant</li>
+                    <li><strong>Multilingual Support:</strong> English, Tamil, Hindi</li>
                 </ul>
             </div>
             
@@ -443,7 +464,6 @@ def home():
                 <p><strong>Public URL:</strong> {{ public_url }}</p>
                 <p><strong>WebSocket URL:</strong> wss://{{ public_url.replace('https://', '') }}/twilio</p>
                 <p><strong>Deepgram API:</strong> ✅ Configured with $200 credit</p>
-                <p><strong>Language:</strong> English (optimized for Deepgram)</p>
             </div>
             
             <div class="info">
@@ -471,7 +491,9 @@ def home():
 def twiml_endpoint():
     """TwiML endpoint for Twilio calls with Deepgram streaming"""
     try:
-        logger.info("Creating TwiML for Deepgram Voice Agent")
+        language = request.args.get('language') or request.form.get('language', 'english')
+        
+        logger.info(f"Creating TwiML for language: {language}")
         
         response = VoiceResponse()
         
@@ -537,9 +559,11 @@ def test_page():
                     <small>Format: +91XXXXXXXXXX or 91XXXXXXXXXX</small>
                 </div>
                 <div class="form-group">
-                    <label for="language">Language:</label>
+                    <label for="language">Language Preference:</label>
                     <select id="language" name="language_preference" required>
-                        <option value="english">English (Deepgram Optimized)</option>
+                        <option value="english">English</option>
+                        <option value="tamil">தமிழ் (Tamil)</option>
+                        <option value="hindi">हिन्दी (Hindi)</option>
                     </select>
                 </div>
                 <button type="submit">Register & Get AI Voice Call</button>
@@ -571,7 +595,7 @@ def test_page():
                                 <p><strong>Patient ID:</strong> ${result.patient_id}</p>
                                 <p><strong>Call Status:</strong> ${result.call_initiated ? 'Initiated' : 'Failed'}</p>
                                 <p><strong>Voice Agent:</strong> Deepgram AI with Medical Functions</p>
-                                <p>You will receive a call with advanced AI conversation in English!</p>
+                                <p>You will receive a call with advanced AI conversation!</p>
                             </div>
                         `;
                     } else {
@@ -612,7 +636,7 @@ def register_patient():
             'id': str(uuid.uuid4()),
             'name': patient_data.get('name', ''),
             'phone_number': phone,
-            'language_preference': 'english',  # Force English for Deepgram
+            'language_preference': patient_data.get('language_preference', 'english'),
             'created_at': datetime.now().isoformat()
         }
         
@@ -626,7 +650,7 @@ def register_patient():
             'patient_id': patient['id'],
             'message': 'Patient registered successfully',
             'call_initiated': call_success,
-            'voice_agent': 'Deepgram AI with Medical Functions (English)',
+            'voice_agent': 'Deepgram AI with Medical Functions',
             'public_url': PUBLIC_URL
         }
         
@@ -648,10 +672,12 @@ def get_conversations():
 def make_twilio_call(patient):
     """Make Twilio call"""
     try:
-        # Create TwiML URL
-        twiml_url = f"{PUBLIC_URL}/twiml"
+        language = patient['language_preference'].lower()
         
-        logger.info(f"📞 Making call to {patient['phone_number']} for {patient['name']}")
+        # Create TwiML URL
+        twiml_url = f"{PUBLIC_URL}/twiml?language={language}"
+        
+        logger.info(f"📞 Making call to {patient['phone_number']} for {patient['name']} in {language}")
         logger.info(f"🔗 TwiML URL: {twiml_url}")
         
         # Use Twilio client to make the call
@@ -679,12 +705,12 @@ async def start_websocket_server():
     return server
 
 if __name__ == '__main__':
-    logger.info("🏥 MedAgg Healthcare POC - DEEPGRAM VOICE AGENT (ENGLISH)")
+    logger.info("🏥 MedAgg Healthcare POC - DEEPGRAM VOICE AGENT")
     logger.info("=" * 70)
     logger.info("🎤 Real-time voice recognition with Deepgram Nova-3 Medical")
     logger.info("🤖 Advanced AI conversation with medical functions")
     logger.info("📞 Twilio integration with WebSocket streaming")
-    logger.info("🌍 Language: English (optimized for Deepgram)")
+    logger.info("🌍 Multilingual support (English, Tamil, Hindi)")
     logger.info("💬 Human-like conversation flow")
     logger.info(f"🌐 Public URL: {PUBLIC_URL}")
     logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
