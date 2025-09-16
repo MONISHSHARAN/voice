@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedAgg Healthcare POC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-blue-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold">🏥 MedAgg Healthcare</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="#home" class="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                    <a href="#form" class="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Patient Form</a>
+                    <a href="#admin" class="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Admin</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Home Section -->
+        <div id="home" class="mb-12">
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">Welcome to MedAgg Healthcare</h2>
+                    <p class="text-gray-600 mb-6">
+                        Experience the future of healthcare with our AI-powered multilingual medical assistant. 
+                        Get instant diagnosis, appointment scheduling, and personalized care in English, Tamil, or Hindi.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-blue-900">🤖 AI Assistant</h3>
+                            <p class="text-blue-700 text-sm">Intelligent medical diagnosis and conversation</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-green-900">🌍 Multilingual</h3>
+                            <p class="text-green-700 text-sm">Support for English, Tamil, and Hindi</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-purple-900">📅 Auto Scheduling</h3>
+                            <p class="text-purple-700 text-sm">Automatic appointment booking and reminders</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient Form Section -->
+        <div id="form" class="mb-12">
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Patient Registration Form</h2>
+                    <form id="patientForm" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Full Name</label>
+                                <input type="text" id="name" name="name" required 
+                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Gender</label>
+                                <select id="gender" name="gender" required 
+                                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    <option value="">Select Gender</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Phone Number (Indian)</label>
+                                <input type="tel" id="phone_number" name="phone_number" required 
+                                       placeholder="+91 98765 43210" pattern="^(\+91|91)?[6-9]\d{9}$"
+                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <p class="mt-1 text-sm text-gray-500">Enter 10-digit Indian mobile number</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Age</label>
+                                <input type="number" id="age" name="age" required min="1" max="120"
+                                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Email Address</label>
+                            <input type="email" id="email" name="email" required 
+                                   placeholder="patient@example.com"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <p class="mt-1 text-sm text-gray-500">We'll send appointment confirmation to this email</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Location</label>
+                            <input type="text" id="location" name="location" required 
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Language Preference</label>
+                            <select id="language_preference" name="language_preference" required 
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="english">English</option>
+                                <option value="tamil">தமிழ் (Tamil)</option>
+                                <option value="hindi">हिन्दी (Hindi)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Problem Description</label>
+                            <textarea id="problem_description" name="problem_description" rows="4" required 
+                                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Medical Category</label>
+                                <select id="medical_category" name="medical_category" required 
+                                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    <option value="interventional_cardiology">Interventional Cardiology</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Sub Category</label>
+                                <select id="sub_category" name="sub_category" required 
+                                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    <option value="chronic_total_occlusion">Chronic Total Occlusion</option>
+                                    <option value="radiofrequency_ablation">Radiofrequency Ablation</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit" 
+                                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                                Register & Get Conversational AI Call
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Section -->
+        <div id="admin" class="mb-12">
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Admin Dashboard</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-blue-900">Total Patients</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="totalPatients">0</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-green-900">Active Calls</h3>
+                            <p class="text-2xl font-bold text-green-600" id="activeCalls">0</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-purple-900">Appointments</h3>
+                            <p class="text-2xl font-bold text-purple-600" id="totalAppointments">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-gray-900 mb-4">Recent Patients</h3>
+                        <div id="recentPatients" class="space-y-2">
+                            <p class="text-gray-500">No patients yet. Submit a form to see data here.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">System Status</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Backend API</h3>
+                        <div class="flex items-center">
+                            <div id="backendStatus" class="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                            <span id="backendStatusText">Checking...</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-2">AI Service</h3>
+                        <div class="flex items-center">
+                            <div id="aiStatus" class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                            <span id="aiStatusText">Initializing...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check backend status
+        async function checkBackendStatus() {
+            try {
+                const response = await axios.get('http://localhost:8000/');
+                document.getElementById('backendStatus').className = 'w-3 h-3 bg-green-500 rounded-full mr-2';
+                document.getElementById('backendStatusText').textContent = 'Online';
+            } catch (error) {
+                document.getElementById('backendStatus').className = 'w-3 h-3 bg-red-500 rounded-full mr-2';
+                document.getElementById('backendStatusText').textContent = 'Offline';
+            }
+        }
+
+        // Check AI status
+        async function checkAIStatus() {
+            try {
+                const response = await axios.get('http://localhost:8000/ai/status');
+                if (response.data.status === 'ready') {
+                    document.getElementById('aiStatus').className = 'w-3 h-3 bg-green-500 rounded-full mr-2';
+                    document.getElementById('aiStatusText').textContent = 'Conversational AI Ready';
+                } else {
+                    document.getElementById('aiStatus').className = 'w-3 h-3 bg-yellow-500 rounded-full mr-2';
+                    document.getElementById('aiStatusText').textContent = 'AI Loading...';
+                }
+            } catch (error) {
+                document.getElementById('aiStatus').className = 'w-3 h-3 bg-red-500 rounded-full mr-2';
+                document.getElementById('aiStatusText').textContent = 'AI Offline';
+            }
+        }
+
+        // Load admin data
+        async function loadAdminData() {
+            try {
+                const patientsResponse = await axios.get('http://localhost:8000/patients');
+                
+                document.getElementById('totalPatients').textContent = patientsResponse.data.length;
+                document.getElementById('totalAppointments').textContent = '0'; // Simple backend doesn't have appointments yet
+                
+                // Show recent patients
+                const recentPatientsDiv = document.getElementById('recentPatients');
+                if (patientsResponse.data.length > 0) {
+                    recentPatientsDiv.innerHTML = patientsResponse.data.slice(0, 5).map(patient => 
+                        `<div class="flex justify-between items-center p-2 bg-white rounded border">
+                            <span class="font-medium">${patient.name}</span>
+                            <span class="text-sm text-gray-500">${patient.language_preference}</span>
+                        </div>`
+                    ).join('');
+                }
+            } catch (error) {
+                console.log('Admin data not available yet');
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('patientForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const patientData = Object.fromEntries(formData.entries());
+            
+            // Show loading state
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Registering & Initiating AI Call...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await axios.post('http://localhost:8000/register-patient', patientData);
+                if (response.data.success) {
+                    alert('Patient registered successfully! Dr. MedAgg (AI) will call you shortly for an intelligent conversation.');
+                    
+                    // Refresh admin data
+                    loadAdminData();
+                    
+                    // Reset form
+                    e.target.reset();
+                } else {
+                    alert('Error: ' + response.data.error);
+                }
+            } catch (error) {
+                alert('Error registering patient: ' + (error.response?.data?.error || error.message));
+            } finally {
+                // Reset button state
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Initialize
+        checkBackendStatus();
+        checkAIStatus();
+        loadAdminData();
+        
+        // Refresh status every 5 seconds
+        setInterval(() => {
+            checkBackendStatus();
+            checkAIStatus();
+            loadAdminData();
+        }, 5000);
+    </script>
+</body>
+</html>
