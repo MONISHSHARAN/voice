@@ -510,7 +510,8 @@ def start_websocket_server():
     websocket_thread.start()
     return websocket_thread
 
-if __name__ == '__main__':
+async def main():
+    """Main function to start the application"""
     logger.info("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
     logger.info("=" * 70)
     logger.info("🎤 Deepgram Agent API with advanced function calling")
@@ -529,3 +530,7 @@ if __name__ == '__main__':
     # Start Flask app
     logger.info("🌐 Starting Flask app on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=False)
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
