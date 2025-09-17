@@ -1,4 +1,6 @@
 Flask==2.3.3
+Flask-SocketIO==5.3.6
 twilio==8.10.0
 websockets==11.0.3
 python-dotenv==1.0.0
+eventlet==0.33.3
