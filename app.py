@@ -1,49 +1,40 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - Production Entry Point
-Based on Deepgram Official Documentation
-https://developers.deepgram.com/docs/twilio-and-deepgram-voice-agent
+MedAgg Healthcare Voice Agent - WebSocket Server Entry Point
+Based on official Deepgram documentation
 """
 
-import asyncio
-import threading
-import logging
-import websockets
-from main import app, logger, PUBLIC_URL, router
+import sys
+import os
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Add current directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def start_websocket_server():
-    """Start WebSocket server in background thread - Based on official documentation"""
-    def run_websocket():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        # Based on documentation - use localhost for development, 0.0.0.0 for production
-        server = loop.run_until_complete(websockets.serve(router, "0.0.0.0", 5000))
-        logger.info("🎤 WebSocket server started on port 5000")
-        loop.run_forever()
-    
-    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
-    websocket_thread.start()
-    return websocket_thread
-
+# Import and run the WebSocket server
 if __name__ == '__main__':
-    logger.info("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
-    logger.info("=" * 70)
-    logger.info("🎤 Deepgram Agent API with advanced function calling")
-    logger.info("❤️ Cardiology-focused UFE questionnaire conversation")
-    logger.info("📞 Twilio integration with WebSocket streaming")
-    logger.info("🔧 Function calling: assess_chest_pain, assess_breathing, schedule_appointment")
-    logger.info("🚨 Emergency handling with immediate response")
-    logger.info(f"🌐 Public URL: {PUBLIC_URL}")
-    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
-    logger.info("💰 Deepgram Agent API: ✅ Configured with advanced capabilities")
-    logger.info("=" * 70)
-    
-    # Start WebSocket server in background
-    start_websocket_server()
-    
-    # Start Flask app
-    logger.info("🌐 Starting Flask app on port 5000")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    try:
+        # Import the WebSocket server from server.py
+        from server import main
+        
+        print("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
+        print("=" * 70)
+        print("🎤 Deepgram Agent API with advanced function calling")
+        print("❤️ Cardiology-focused UFE questionnaire conversation")
+        print("📞 Twilio integration with WebSocket streaming")
+        print("🔧 Function calling: assess_chest_pain, assess_breathing, schedule_appointment")
+        print("🚨 Emergency handling with immediate response")
+        print("🌐 WebSocket Server: ws://0.0.0.0:5000")
+        print("🔗 Twilio WebSocket URL: wss://voice-95g5.onrender.com/twilio")
+        print("💰 Deepgram Agent API: ✅ Configured with advanced capabilities")
+        print("=" * 70)
+        
+        # Start WebSocket server
+        main()
+        
+    except ImportError as e:
+        print(f"❌ Error: Could not import from server.py: {e}")
+        print("Available files:", os.listdir('.'))
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Error starting WebSocket server: {e}")
+        sys.exit(1)
