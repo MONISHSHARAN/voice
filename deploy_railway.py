@@ -1,5 +1,41 @@
 #!/usr/bin/env python3
 """
+Deploy MedAgg Voice Agent to Railway
+Perfect solution with proper WebSocket support
+"""
+
+import os
+import subprocess
+import json
+
+def create_railway_config():
+    """Create Railway configuration"""
+    
+    # Create railway.json
+    railway_config = {
+        "$schema": "https://railway.app/railway.schema.json",
+        "build": {
+            "builder": "NIXPACKS"
+        },
+        "deploy": {
+            "startCommand": "python main.py",
+            "healthcheckPath": "/",
+            "healthcheckTimeout": 100,
+            "restartPolicyType": "ON_FAILURE",
+            "restartPolicyMaxRetries": 10
+        }
+    }
+    
+    with open("railway.json", "w") as f:
+        json.dump(railway_config, f, indent=2)
+    
+    print("✅ Railway configuration created")
+
+def create_main_server():
+    """Create main server file"""
+    
+    main_content = '''#!/usr/bin/env python3
+"""
 MedAgg Healthcare Voice Agent - Railway Server
 Perfect solution with proper WebSocket support
 """
@@ -33,9 +69,9 @@ PUBLIC_URL = os.getenv("PUBLIC_URL", "https://medagg-voice-agent-production.up.r
 # Initialize Twilio client
 try:
     twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    logger.info("Twilio client initialized successfully")
+    logger.info("✅ Twilio client initialized successfully")
 except Exception as e:
-    logger.error(f"Twilio initialization failed: {e}")
+    logger.error(f"❌ Twilio initialization failed: {e}")
     twilio_client = None
 
 # Storage
@@ -219,13 +255,13 @@ def make_twilio_call(patient):
         # Create TwiML URL
         twiml_url = f"{PUBLIC_URL}/twiml"
         
-        logger.info(f"Making call to {patient['phone_number']} for {patient['name']}")
-        logger.info(f"TwiML URL: {twiml_url}")
-        logger.info(f"Using Twilio Account: {TWILIO_ACCOUNT_SID}")
+        logger.info(f"📞 Making call to {patient['phone_number']} for {patient['name']}")
+        logger.info(f"🔗 TwiML URL: {twiml_url}")
+        logger.info(f"🔑 Using Twilio Account: {TWILIO_ACCOUNT_SID}")
         
         # Check if phone number is verified for trial accounts
         if patient['phone_number'].startswith('+91'):
-            logger.warning("Indian number detected. Trial accounts may need verification.")
+            logger.warning("⚠️ Indian number detected. Trial accounts may need verification.")
         
         # Use Twilio client to make the call
         call = twilio_client.calls.create(
@@ -234,40 +270,40 @@ def make_twilio_call(patient):
             from_=TWILIO_PHONE_NUMBER
         )
         
-        logger.info(f"Call initiated successfully!")
-        logger.info(f"Call SID: {call.sid}")
+        logger.info(f"✅ Call initiated successfully!")
+        logger.info(f"📋 Call SID: {call.sid}")
         
         return True
             
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Error making call: {error_msg}")
+        logger.error(f"❌ Error making call: {error_msg}")
         
         if "401" in error_msg or "Authenticate" in error_msg:
-            logger.error("Authentication failed. Check Twilio credentials.")
+            logger.error("🔑 Authentication failed. Check Twilio credentials.")
         elif "unverified" in error_msg.lower():
-            logger.error("Phone number needs verification for trial accounts.")
+            logger.error("📱 Phone number needs verification for trial accounts.")
         elif "not a valid phone number" in error_msg.lower():
-            logger.error("Invalid phone number format.")
+            logger.error(" Invalid phone number format.")
         
         return False
 
 async def main():
     """Main function to start WebSocket server"""
-    logger.info("MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
+    logger.info("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
     logger.info("=" * 70)
-    logger.info("Deepgram Agent API with advanced function calling")
-    logger.info("Cardiology-focused UFE questionnaire conversation")
-    logger.info("Twilio integration with WebSocket streaming")
-    logger.info("Function calling: assess_chest_pain, assess_breathing, schedule_appointment")
-    logger.info("Emergency handling with immediate response")
-    logger.info(f"Public URL: {PUBLIC_URL}")
-    logger.info(f"WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
-    logger.info("Deepgram Agent API: Configured with advanced capabilities")
+    logger.info("🎤 Deepgram Agent API with advanced function calling")
+    logger.info("❤️ Cardiology-focused UFE questionnaire conversation")
+    logger.info("📞 Twilio integration with WebSocket streaming")
+    logger.info("🔧 Function calling: assess_chest_pain, assess_breathing, schedule_appointment")
+    logger.info("🚨 Emergency handling with immediate response")
+    logger.info(f"🌐 Public URL: {PUBLIC_URL}")
+    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+    logger.info("💰 Deepgram Agent API: ✅ Configured with advanced capabilities")
     logger.info("=" * 70)
     
     # Start WebSocket server
-    logger.info("Starting WebSocket server on port 5000")
+    logger.info("🎤 Starting WebSocket server on port 5000")
     server = await websockets.serve(ws_handler.handle_websocket, "0.0.0.0", 5000)
     
     # Keep server running
@@ -275,3 +311,52 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+'''
+    
+    with open("main.py", "w") as f:
+        f.write(main_content)
+    
+    print("✅ Main server file created")
+
+def create_railway_deployment():
+    """Create Railway deployment files"""
+    
+    # Create Procfile
+    with open("Procfile", "w") as f:
+        f.write("web: python main.py\n")
+    
+    print("✅ Procfile created")
+    
+    # Create railway.json
+    create_railway_config()
+    
+    print("✅ Railway deployment files created")
+
+def main():
+    """Main deployment function"""
+    print("🚀 MedAgg Voice Agent - Railway Deployment Setup")
+    print("=" * 50)
+    
+    # Create deployment files
+    create_railway_deployment()
+    create_main_server()
+    
+    print("\n✅ Railway deployment setup complete!")
+    print("\n📋 Next steps:")
+    print("1. Go to https://railway.app")
+    print("2. Sign up/Login with GitHub")
+    print("3. Click 'New Project' → 'Deploy from GitHub repo'")
+    print("4. Select your repository")
+    print("5. Add environment variables:")
+    print("   - DEEPGRAM_API_KEY")
+    print("   - TWILIO_ACCOUNT_SID")
+    print("   - TWILIO_AUTH_TOKEN")
+    print("   - TWILIO_PHONE_NUMBER")
+    print("6. Deploy!")
+    print("\n🌐 Your app will be available at:")
+    print("   https://your-app-name.up.railway.app")
+    print("\n🔗 WebSocket URL for Twilio:")
+    print("   wss://your-app-name.up.railway.app/twilio")
+
+if __name__ == "__main__":
+    main()
