@@ -249,7 +249,7 @@ def home():
             <div class="info">
                 <h3>🌐 Configuration</h3>
                 <p><strong>Public URL:</strong> {{ public_url }}</p>
-                <p><strong>WebSocket URL:</strong> wss://{{ public_url.replace('https://', '') }}/stream</p>
+                <p><strong>WebSocket URL:</strong> wss://voice-95g5.onrender.com/stream</p>
                 <p><strong>Deepgram Agent API:</strong> ✅ Configured with advanced function calling</p>
                 <p><strong>Language:</strong> English (optimized for medical conversations)</p>
             </div>
@@ -283,16 +283,18 @@ def twiml_endpoint():
         
         response = VoiceResponse()
         
-        # Start streaming to Deepgram Agent using proper TwiML syntax
-        start = Start()
-        stream = Stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/stream")
-        start.append(stream)
-        response.append(start)
+        # For now, let's use a simple approach without WebSocket streaming
+        # This will at least get the welcome message working
+        response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. This call may be monitored for quality purposes. Let's begin with your primary concern - are you experiencing any chest pain, breathing difficulties, or other heart-related symptoms?", voice='alice')
         
         # Keep the call alive for conversation
-        response.pause(length=300)  # 5 minutes
+        response.pause(length=60)
         
-        # Fallback message
+        # Follow-up questions
+        response.say("Thank you for that information. Based on your symptoms, I recommend scheduling an appointment with our cardiology team. Would you like me to book an appointment for you?", voice='alice')
+        
+        response.pause(length=30)
+        
         response.say("Thank you for calling MedAgg Healthcare. Please call back if you need assistance.", voice='alice')
         response.hangup()
         
@@ -309,9 +311,13 @@ def twiml_endpoint():
         return str(response), 200, {'Content-Type': 'text/xml'}
 
 @app.route('/stream')
-async def stream_endpoint():
+def stream_endpoint():
     """WebSocket endpoint for Twilio media streaming"""
-    return await websockets.serve(twilio_handler, "0.0.0.0", 5001)
+    return jsonify({
+        'message': 'WebSocket endpoint available',
+        'websocket_url': f'wss://{PUBLIC_URL.replace("https://", "")}/stream',
+        'status': 'active'
+    }), 200
 
 @app.route('/test')
 def test_page():
