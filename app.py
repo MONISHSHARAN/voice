@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - Flask with WebSocket Support
-Single-port solution for Render deployment
+MedAgg Healthcare Voice Agent - Flask-SocketIO Solution
+Single-port solution for both HTTP and WebSocket on Render
 """
 
 import asyncio
@@ -18,6 +18,11 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 from dotenv import load_dotenv
 from cardiology_functions import FUNCTION_MAP
+from flask_socketio import SocketIO, emit
+import eventlet
+
+# Patch standard library for async compatibility
+eventlet.monkey_patch()
 
 load_dotenv()
 
@@ -28,6 +33,7 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'medagg-secret-key'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Configuration
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "ebae70e078574403bf495088b5ea043e456b7f2f")
@@ -50,7 +56,7 @@ appointments = {}
 active_calls = {}
 
 def sts_connect():
-    """Connect to Deepgram Agent API - Based on official documentation"""
+    """Connect to Deepgram Agent API"""
     api_key = os.getenv('DEEPGRAM_API_KEY')
     if not api_key:
         raise ValueError("DEEPGRAM_API_KEY environment variable is not set")
@@ -66,101 +72,180 @@ def load_config():
     with open("config.json", "r") as f:
         return json.load(f)
 
-async def twilio_handler(twilio_ws):
-    """Main handler for Twilio WebSocket connection - Based on official documentation"""
-    audio_queue = asyncio.Queue()
-    streamsid_queue = asyncio.Queue()
+def execute_function_call(func_name, arguments):
+    """Execute function call"""
+    if func_name in FUNCTION_MAP:
+        result = FUNCTION_MAP[func_name](**arguments)
+        logger.info(f"Function call result: {result}")
+        return result
+    else:
+        result = {"error": f"Unknown function: {func_name}"}
+        logger.error(result)
+        return result
 
-    async with sts_connect() as sts_ws:
-        # Send configuration to Deepgram Agent
+def create_function_call_response(func_id, func_name, result):
+    """Create function call response"""
+    return {
+        "type": "FunctionCallResponse",
+        "id": func_id,
+        "name": func_name,
+        "content": json.dumps(result)
+    }
+
+# WebSocket event handlers for Twilio Media Stream
+@socketio.on('connect', namespace='/twilio')
+def connect():
+    logger.info("Twilio WebSocket connected!")
+
+@socketio.on('disconnect', namespace='/twilio')
+def disconnect():
+    logger.info("Twilio WebSocket disconnected!")
+
+@socketio.on('message', namespace='/twilio')
+def handle_message(message):
+    eventlet.spawn(process_twilio_message, message, request.sid)
+
+async def process_twilio_message(message, sid):
+    """Process incoming Twilio Media Stream messages"""
+    try:
+        data = json.loads(message)
+        event = data["event"]
+
+        if event == "start":
+            logger.info(f"Call started - getting stream SID for session {sid}")
+            start = data["start"]
+            streamsid = start["streamSid"]
+            active_calls[sid] = {
+                "streamsid": streamsid,
+                "audio_queue": asyncio.Queue(),
+                "sts_ws": None,
+                "sts_sender_task": None,
+                "sts_receiver_task": None,
+            }
+            eventlet.spawn(start_deepgram_agent_session, sid)
+        elif event == "connected":
+            logger.info(f"Twilio connected for session {sid}")
+            pass
+        elif event == "media":
+            media = data["media"]
+            chunk = base64.b64decode(media["payload"])
+            if media["track"] == "inbound":
+                if sid in active_calls:
+                    await active_calls[sid]["audio_queue"].put(chunk)
+        elif event == "stop":
+            logger.info(f"Call stopped for session {sid}")
+            if sid in active_calls:
+                # Clean up tasks and connections
+                if active_calls[sid]["sts_sender_task"]:
+                    active_calls[sid]["sts_sender_task"].cancel()
+                if active_calls[sid]["sts_receiver_task"]:
+                    active_calls[sid]["sts_receiver_task"].cancel()
+                if active_calls[sid]["sts_ws"]:
+                    await active_calls[sid]["sts_ws"].close()
+                del active_calls[sid]
+
+    except Exception as e:
+        logger.error(f"Error processing Twilio message for session {sid}: {e}")
+
+async def start_deepgram_agent_session(sid):
+    """Start Deepgram Agent session for a given Twilio call"""
+    try:
+        call_data = active_calls[sid]
+        sts_ws = await sts_connect()
+        call_data["sts_ws"] = sts_ws
+
         config_message = load_config()
         await sts_ws.send(json.dumps(config_message))
 
-        # Start all async tasks
-        await asyncio.wait(
-            [
-                asyncio.ensure_future(sts_sender(sts_ws, audio_queue)),
-                asyncio.ensure_future(sts_receiver(sts_ws, twilio_ws, streamsid_queue)),
-                asyncio.ensure_future(twilio_receiver(twilio_ws, audio_queue, streamsid_queue)),
-            ]
-        )
+        call_data["sts_sender_task"] = eventlet.spawn(sts_sender, sts_ws, call_data["audio_queue"])
+        call_data["sts_receiver_task"] = eventlet.spawn(sts_receiver, sts_ws, sid)
 
-        await twilio_ws.close()
+        logger.info(f"Deepgram Agent session started for {sid}")
+
+    except Exception as e:
+        logger.error(f"Error starting Deepgram Agent session for {sid}: {e}")
+        if sid in active_calls:
+            del active_calls[sid]
 
 async def sts_sender(sts_ws, audio_queue):
-    """Send audio to Deepgram Agent - Based on official documentation"""
+    """Send audio to Deepgram Agent"""
     logger.info("sts_sender started")
-    while True:
-        chunk = await audio_queue.get()
-        await sts_ws.send(chunk)
+    try:
+        while True:
+            chunk = await audio_queue.get()
+            await sts_ws.send(chunk)
+    except asyncio.CancelledError:
+        logger.info("sts_sender task cancelled")
+    except Exception as e:
+        logger.error(f"Error in sts_sender: {e}")
 
-async def sts_receiver(sts_ws, twilio_ws, streamsid_queue):
-    """Receive responses from Deepgram Agent - Based on official documentation"""
+async def sts_receiver(sts_ws, sid):
+    """Receive responses from Deepgram Agent"""
     logger.info("sts_receiver started")
-    # Wait for stream SID from Twilio
-    streamsid = await streamsid_queue.get()
-    
-    async for message in sts_ws:
-        if type(message) is str:
-            logger.info(f"Deepgram Agent message: {message}")
-            # Handle barge-in
-            decoded = json.loads(message)
-            if decoded['type'] == 'UserStartedSpeaking':
-                clear_message = {
-                    "event": "clear",
-                    "streamSid": streamsid
-                }
-                await twilio_ws.send(json.dumps(clear_message))
-            continue
+    try:
+        call_data = active_calls.get(sid)
+        if not call_data:
+            logger.warning(f"No call data found for session {sid} in sts_receiver.")
+            return
 
-        # Audio response from Deepgram - convert to Twilio format
-        raw_mulaw = message
-        
-        # Construct Twilio media message
-        media_message = {
-            "event": "media",
-            "streamSid": streamsid,
-            "media": {"payload": base64.b64encode(raw_mulaw).decode("ascii")}
-        }
-        
-        # Send TTS audio to Twilio
-        await twilio_ws.send(json.dumps(media_message))
+        streamsid = call_data["streamsid"]
 
-async def twilio_receiver(twilio_ws, audio_queue, streamsid_queue):
-    """Receive audio from Twilio - Based on official documentation"""
-    logger.info("twilio_receiver started")
-    # Twilio sends 160 byte messages (20ms of audio each)
-    # Buffer 20 messages = 0.4 seconds for better throughput
-    BUFFER_SIZE = 20 * 160
-    inbuffer = bytearray(b"")
-    
-    async for message in twilio_ws:
-        try:
-            data = json.loads(message)
-            
-            if data["event"] == "start":
-                logger.info("Got stream SID from Twilio")
-                start = data["start"]
-                streamsid = start["streamSid"]
-                streamsid_queue.put_nowait(streamsid)
-            elif data["event"] == "connected":
-                continue
-            elif data["event"] == "media":
-                media = data["media"]
-                chunk = base64.b64decode(media["payload"])
-                if media["track"] == "inbound":
-                    inbuffer.extend(chunk)
-            elif data["event"] == "stop":
-                break
-            
-            # Send buffered audio to Deepgram
-            while len(inbuffer) >= BUFFER_SIZE:
-                chunk = inbuffer[:BUFFER_SIZE]
-                audio_queue.put_nowait(chunk)
-                inbuffer = inbuffer[BUFFER_SIZE:]
-        except Exception as e:
-            logger.error(f"Error in twilio_receiver: {e}")
-            break
+        async for message in sts_ws:
+            if type(message) is str:
+                logger.info(f"Deepgram Agent message: {message}")
+                decoded = json.loads(message)
+
+                if decoded["type"] == "UserStartedSpeaking":
+                    clear_message = {
+                        "event": "clear",
+                        "streamSid": streamsid
+                    }
+                    socketio.emit('message', json.dumps(clear_message), room=sid, namespace='/twilio')
+                    continue
+                elif decoded["type"] == "FunctionCallRequest":
+                    await handle_function_call_request(decoded, sts_ws)
+                    continue
+
+            # Audio response from Deepgram
+            raw_mulaw = message
+
+            media_message = {
+                "event": "media",
+                "streamSid": streamsid,
+                "media": {"payload": base64.b64encode(raw_mulaw).decode("ascii")}
+            }
+
+            socketio.emit('message', json.dumps(media_message), room=sid, namespace='/twilio')
+
+    except asyncio.CancelledError:
+        logger.info("sts_receiver task cancelled")
+    except Exception as e:
+        logger.error(f"Error in sts_receiver for session {sid}: {e}")
+
+async def handle_function_call_request(decoded, sts_ws):
+    """Handle function call requests from Deepgram Agent"""
+    try:
+        for function_call in decoded["functions"]:
+            func_name = function_call["name"]
+            func_id = function_call["id"]
+            arguments = json.loads(function_call["arguments"])
+
+            logger.info(f"Function call: {func_name} (ID: {func_id}), arguments: {arguments}")
+
+            result = execute_function_call(func_name, arguments)
+
+            function_result = create_function_call_response(func_id, func_name, result)
+            await sts_ws.send(json.dumps(function_result))
+            logger.info(f"Sent function result: {function_result}")
+
+    except Exception as e:
+        logger.error(f"Error calling function: {e}")
+        error_result = create_function_call_response(
+            func_id if "func_id" in locals() else "unknown",
+            func_name if "func_name" in locals() else "unknown",
+            {"error": f"Function call failed with: {str(e)}"}
+        )
+        await sts_ws.send(json.dumps(error_result))
 
 # Flask Routes
 @app.route('/')
@@ -238,9 +323,10 @@ def twiml_endpoint():
         
         response = VoiceResponse()
         
-        # Based on official documentation - use Connect with Stream
-        response.say("This call may be monitored or recorded.", language="en")
-        response.connect().stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+        # Start streaming to Deepgram Agent using proper TwiML syntax
+        connect = response.connect()
+        stream = connect.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+        response.say("This call may be monitored or recorded.")
         
         twiml = str(response)
         logger.info("TwiML created successfully")
@@ -253,11 +339,6 @@ def twiml_endpoint():
         response.say("Hello! This is MedAgg Healthcare. I'm here to help you with your health concerns.", voice='alice')
         response.hangup()
         return str(response), 200, {'Content-Type': 'text/xml'}
-
-@app.route('/twilio')
-def twilio_websocket():
-    """WebSocket endpoint for Twilio - This will be handled by the WebSocket server"""
-    return "WebSocket endpoint - use wss:// protocol", 200
 
 @app.route('/test')
 def test_page():
@@ -456,6 +537,5 @@ if __name__ == '__main__':
     logger.info("💰 Deepgram Agent API: ✅ Configured with advanced capabilities")
     logger.info("=" * 70)
     
-    # Start Flask app
-    logger.info("🌐 Starting Flask app on port 5000")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Start Flask-SocketIO app
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
