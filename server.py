@@ -135,6 +135,9 @@ async def router(websocket, path):
     if path == "/twilio":
         print("Starting Twilio handler")
         await twilio_handler(websocket)
+    else:
+        print(f"Unknown path: {path}")
+        await websocket.close()
 
 def main():
     """Main function to start WebSocket server"""
