@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - Complete Real-time Solution
-Based on DeepgramVoiceAgent repository implementation
+MedAgg Healthcare Voice Agent - CORRECT Twilio-Deepgram Integration
+Based on proper Twilio WebSocket streaming with Deepgram
 """
 
 import asyncio
@@ -46,6 +46,7 @@ except Exception as e:
 patients = []
 conversations = {}
 active_calls = {}
+deepgram_connections = {}
 
 def get_ai_response(transcript, language="english"):
     """Get AI response based on transcript using rule-based system"""
@@ -448,7 +449,7 @@ def handle_stop(data):
         active_calls[call_sid]['end_time'] = datetime.now().isoformat()
 
 def process_audio_with_deepgram_realtime(audio_data, call_sid):
-    """Process audio with Deepgram real-time streaming"""
+    """Process audio with Deepgram real-time streaming - FIXED VERSION"""
     try:
         logger.info(f"🎵 Processing audio for call {call_sid}: {len(audio_data)} bytes")
         
