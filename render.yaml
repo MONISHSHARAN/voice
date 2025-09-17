@@ -16,4 +16,4 @@ services:
       - key: TWILIO_PHONE_NUMBER
         value: +17752586467
       - key: PUBLIC_URL
-        value: https://medagg-voice-agent.onrender.com
+        value: https://voice-95g5.onrender.com

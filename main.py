@@ -33,7 +33,7 @@ DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "ebae70e078574403bf495088b5ea04
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "AC33f397657e06dac328e5d5081eb4f9fd")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "bbf7abc794d8f0eb9538350b501d033f")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "+17752586467")
-PUBLIC_URL = os.getenv("PUBLIC_URL", "https://medagg-voice-agent.onrender.com")
+PUBLIC_URL = os.getenv("PUBLIC_URL", "https://voice-95g5.onrender.com")
 
 # Initialize Twilio client
 try:
