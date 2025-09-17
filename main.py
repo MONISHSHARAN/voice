@@ -283,18 +283,16 @@ def twiml_endpoint():
         
         response = VoiceResponse()
         
-        # For now, let's use a simple approach without WebSocket streaming
-        # This will at least get the welcome message working
-        response.say("Hello! Welcome to MedAgg Healthcare. I'm Dr. MedAgg, your AI cardiology specialist. I'm here to conduct a comprehensive heart health evaluation with you today. This call may be monitored for quality purposes. Let's begin with your primary concern - are you experiencing any chest pain, breathing difficulties, or other heart-related symptoms?", voice='alice')
+        # Start streaming to Deepgram Agent using proper TwiML syntax
+        start = Start()
+        stream = Stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/stream")
+        start.append(stream)
+        response.append(start)
         
         # Keep the call alive for conversation
-        response.pause(length=60)
+        response.pause(length=300)  # 5 minutes
         
-        # Follow-up questions
-        response.say("Thank you for that information. Based on your symptoms, I recommend scheduling an appointment with our cardiology team. Would you like me to book an appointment for you?", voice='alice')
-        
-        response.pause(length=30)
-        
+        # Fallback message
         response.say("Thank you for calling MedAgg Healthcare. Please call back if you need assistance.", voice='alice')
         response.hangup()
         
@@ -311,13 +309,9 @@ def twiml_endpoint():
         return str(response), 200, {'Content-Type': 'text/xml'}
 
 @app.route('/stream')
-def stream_endpoint():
+async def stream_endpoint():
     """WebSocket endpoint for Twilio media streaming"""
-    return jsonify({
-        'message': 'WebSocket endpoint available',
-        'websocket_url': f'wss://{PUBLIC_URL.replace("https://", "")}/stream',
-        'status': 'active'
-    }), 200
+    return await websockets.serve(twilio_handler, "0.0.0.0", 5001)
 
 @app.route('/test')
 def test_page():
@@ -503,5 +497,28 @@ def make_twilio_call(patient):
         
         return False
 
-# WebSocket server will be started separately for production
-# This file only defines the Flask app and functions
+if __name__ == '__main__':
+    logger.info("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
+    logger.info("=" * 70)
+    logger.info("🎤 Deepgram Agent API with advanced function calling")
+    logger.info("❤️ Cardiology-focused UFE questionnaire conversation")
+    logger.info("📞 Twilio integration with WebSocket streaming")
+    logger.info("🔧 Function calling: assess_chest_pain, assess_breathing, schedule_appointment")
+    logger.info("🚨 Emergency handling with immediate response")
+    logger.info(f"🌐 Public URL: {PUBLIC_URL}")
+    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/stream")
+    logger.info("💰 Deepgram Agent API: ✅ Configured with advanced capabilities")
+    logger.info("=" * 70)
+    
+    # Start WebSocket server in background
+    import threading
+    def run_websocket():
+        asyncio.run(websockets.serve(twilio_handler, "0.0.0.0", 5001))
+    
+    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
+    websocket_thread.start()
+    logger.info("🎤 WebSocket server started on port 5001")
+    
+    # Start Flask app
+    logger.info("🌐 Starting Flask app on port 5000")
+    app.run(host='0.0.0.0', port=5000, debug=False)
