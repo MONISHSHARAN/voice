@@ -308,7 +308,10 @@ def twiml_endpoint():
         response.hangup()
         return str(response), 200, {'Content-Type': 'text/xml'}
 
-# WebSocket server runs on port 5001, handled by start_websocket_server()
+@app.route('/stream')
+async def stream_endpoint():
+    """WebSocket endpoint for Twilio media streaming"""
+    return await websockets.serve(twilio_handler, "0.0.0.0", 5001)
 
 @app.route('/test')
 def test_page():
@@ -494,24 +497,7 @@ def make_twilio_call(patient):
         
         return False
 
-def start_websocket_server():
-    """Start WebSocket server in a separate thread"""
-    async def websocket_main():
-        server = await websockets.serve(twilio_handler, "0.0.0.0", 5001)
-        logger.info("🎤 WebSocket server started on port 5001")
-        await server.wait_closed()
-    
-    # Run WebSocket server in a separate thread
-    def run_websocket():
-        asyncio.run(websocket_main())
-    
-    import threading
-    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
-    websocket_thread.start()
-    return websocket_thread
-
-async def main():
-    """Main function to start the application"""
+if __name__ == '__main__':
     logger.info("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
     logger.info("=" * 70)
     logger.info("🎤 Deepgram Agent API with advanced function calling")
@@ -525,12 +511,14 @@ async def main():
     logger.info("=" * 70)
     
     # Start WebSocket server in background
-    start_websocket_server()
+    import threading
+    def run_websocket():
+        asyncio.run(websockets.serve(twilio_handler, "0.0.0.0", 5001))
+    
+    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
+    websocket_thread.start()
+    logger.info("🎤 WebSocket server started on port 5001")
     
     # Start Flask app
     logger.info("🌐 Starting Flask app on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=False)
-
-if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
