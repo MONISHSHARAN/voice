@@ -2,6 +2,6 @@
 <Response>
     <Say language="en">This call may be monitored or recorded.</Say>
     <Connect>
-        <Stream url="wss://your-app-name.up.railway.app/twilio" />
+        <Stream url="wss://your-app-name.up.railway.app:5001/twilio" />
     </Connect>
 </Response>

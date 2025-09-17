@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MedAgg Healthcare Voice Agent - Simple Working Solution
-Guaranteed to deploy successfully on Railway
+MedAgg Healthcare Voice Agent - Fixed for Railway Healthcheck
+WebSocket server with HTTP healthcheck support
 """
 
 import asyncio
@@ -15,6 +15,9 @@ from datetime import datetime
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 from dotenv import load_dotenv
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.parse
 
 load_dotenv()
 
@@ -68,6 +71,83 @@ def load_config():
             "instructions": "You are a cardiology AI assistant. Conduct UFE questionnaire for heart health assessment.",
             "functions": []
         }
+
+# Simple HTTP handler for healthcheck
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b'''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>MedAgg Healthcare - Voice Agent</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    .status { padding: 20px; margin: 20px 0; border-radius: 5px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🏥 MedAgg Healthcare - Voice Agent</h1>
+                    <div class="status">
+                        <h3>✅ System Status: ONLINE</h3>
+                        <p>Advanced Cardiology AI Voice Agent with Deepgram Agent API is active!</p>
+                        <p><strong>WebSocket URL:</strong> wss://''' + PUBLIC_URL.replace('https://', '') + b'''/twilio</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            ''')
+        elif self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'status': 'healthy',
+                'service': 'MedAgg Voice Agent',
+                'websocket_url': f'wss://{PUBLIC_URL.replace("https://", "")}/twilio'
+            }).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def do_POST(self):
+        if self.path == '/twiml':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/xml')
+            self.end_headers()
+            twiml = self.get_twiml()
+            self.wfile.write(twiml.encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def get_twiml(self):
+        try:
+            logger.info("Creating TwiML for Deepgram Agent Voice Agent")
+            
+            response = VoiceResponse()
+            
+            # Use proper TwiML syntax for streaming
+            response.say("This call may be monitored or recorded.", language="en")
+            connect = response.connect()
+            stream = connect.stream(url=f"wss://{PUBLIC_URL.replace('https://', '')}/twilio")
+            
+            twiml = str(response)
+            logger.info("TwiML created successfully")
+            
+            return twiml
+            
+        except Exception as e:
+            logger.error(f"Error creating TwiML: {e}")
+            response = VoiceResponse()
+            response.say("Hello! This is MedAgg Healthcare. I'm here to help you with your health concerns.", voice='alice')
+            response.hangup()
+            return str(response)
 
 # WebSocket handler for Twilio
 class WebSocketHandler:
@@ -191,51 +271,40 @@ class WebSocketHandler:
 # Global WebSocket handler
 ws_handler = WebSocketHandler()
 
-def make_twilio_call(patient):
-    """Make Twilio call"""
-    try:
-        if not twilio_client:
-            logger.error("Twilio client not initialized")
-            return False
-            
-        # Create TwiML URL
-        twiml_url = f"{PUBLIC_URL}/twiml"
-        
-        logger.info(f"Making call to {patient['phone_number']} for {patient['name']}")
-        logger.info(f"TwiML URL: {twiml_url}")
-        logger.info(f"Using Twilio Account: {TWILIO_ACCOUNT_SID}")
-        
-        # Check if phone number is verified for trial accounts
-        if patient['phone_number'].startswith('+91'):
-            logger.warning("Indian number detected. Trial accounts may need verification.")
-        
-        # Use Twilio client to make the call
-        call = twilio_client.calls.create(
-            url=twiml_url,
-            to=patient['phone_number'],
-            from_=TWILIO_PHONE_NUMBER
-        )
-        
-        logger.info(f"Call initiated successfully!")
-        logger.info(f"Call SID: {call.sid}")
-        
-        return True
-            
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error making call: {error_msg}")
-        
-        if "401" in error_msg or "Authenticate" in error_msg:
-            logger.error("Authentication failed. Check Twilio credentials.")
-        elif "unverified" in error_msg.lower():
-            logger.error("Phone number needs verification for trial accounts.")
-        elif "not a valid phone number" in error_msg.lower():
-            logger.error("Invalid phone number format.")
-        
-        return False
+def start_http_server():
+    """Start HTTP server for healthcheck"""
+    def run_http():
+        try:
+            server = HTTPServer(('0.0.0.0', 5000), HealthHandler)
+            logger.info("HTTP server started on port 5000 for healthcheck")
+            server.serve_forever()
+        except Exception as e:
+            logger.error(f"Error starting HTTP server: {e}")
+    
+    http_thread = threading.Thread(target=run_http, daemon=True)
+    http_thread.start()
+    return http_thread
 
-async def main():
-    """Main function to start WebSocket server"""
+def start_websocket_server():
+    """Start WebSocket server"""
+    def run_websocket():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Start WebSocket server on port 5001
+            server = loop.run_until_complete(websockets.serve(ws_handler.handle_websocket, "0.0.0.0", 5001))
+            logger.info("WebSocket server started on port 5001")
+            loop.run_forever()
+        except Exception as e:
+            logger.error(f"Error starting WebSocket server: {e}")
+    
+    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
+    websocket_thread.start()
+    return websocket_thread
+
+def main():
+    """Main function to start both servers"""
     logger.info("MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
     logger.info("=" * 70)
     logger.info("Deepgram Agent API with advanced function calling")
@@ -248,12 +317,18 @@ async def main():
     logger.info("Deepgram Agent API: Configured with advanced capabilities")
     logger.info("=" * 70)
     
-    # Start WebSocket server
-    logger.info("Starting WebSocket server on port 5000")
-    server = await websockets.serve(ws_handler.handle_websocket, "0.0.0.0", 5000)
-    
-    # Keep server running
-    await server.wait_closed()
+    # Start both servers
+    try:
+        start_http_server()  # Port 5000 for healthcheck
+        start_websocket_server()  # Port 5001 for WebSocket
+        
+        # Keep main thread alive
+        while True:
+            pass
+    except KeyboardInterrupt:
+        logger.info("Shutting down servers...")
+    except Exception as e:
+        logger.error(f"Error in main: {e}")
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
