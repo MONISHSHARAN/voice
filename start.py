@@ -1,27 +1,50 @@
 #!/usr/bin/env python3
 """
-Startup script for MedAgg Healthcare Voice Agent
+MedAgg Healthcare Voice Agent - Startup Script
+Runs both HTTP and WebSocket servers
 """
 
 import subprocess
 import sys
+import time
+import logging
+import threading
 import os
 
-def main():
-    """Start the application"""
-    print("🏥 Starting MedAgg Healthcare Voice Agent...")
-    
-    # Check if main.py exists
-    if not os.path.exists('main.py'):
-        print("❌ Error: main.py not found!")
-        sys.exit(1)
-    
-    # Start the application
-    try:
-        subprocess.run([sys.executable, 'main.py'], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error starting application: {e}")
-        sys.exit(1)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-if __name__ == '__main__':
+def run_websocket_server():
+    """Run WebSocket server"""
+    try:
+        logger.info("Starting WebSocket server...")
+        subprocess.run([sys.executable, "main.py"], check=True)
+    except Exception as e:
+        logger.error(f"Error running WebSocket server: {e}")
+
+def run_http_server():
+    """Run HTTP server"""
+    try:
+        logger.info("Starting HTTP server...")
+        subprocess.run([sys.executable, "http_server.py"], check=True)
+    except Exception as e:
+        logger.error(f"Error running HTTP server: {e}")
+
+def main():
+    """Main function"""
+    logger.info("🏥 MedAgg Healthcare - Starting Voice Agent")
+    logger.info("=" * 50)
+    
+    # Start WebSocket server in background
+    ws_thread = threading.Thread(target=run_websocket_server, daemon=True)
+    ws_thread.start()
+    
+    # Wait a moment for WebSocket server to start
+    time.sleep(2)
+    
+    # Start HTTP server in foreground
+    run_http_server()
+
+if __name__ == "__main__":
     main()
