@@ -29,7 +29,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'medagg-secret-key'
 
 # Configuration
-DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "1b356fc0f476eb7f32bfcf5cb408635e8a1b77c6")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "ebae70e078574403bf495088b5ea043e456b7f2f")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "AC33f397657e06dac328e5d5081eb4f9fd")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "bbf7abc794d8f0eb9538350b501d033f")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "+17752586467")
@@ -497,28 +497,5 @@ def make_twilio_call(patient):
         
         return False
 
-if __name__ == '__main__':
-    logger.info("🏥 MedAgg Healthcare - CARDIOLOGY VOICE AGENT")
-    logger.info("=" * 70)
-    logger.info("🎤 Deepgram Agent API with advanced function calling")
-    logger.info("❤️ Cardiology-focused UFE questionnaire conversation")
-    logger.info("📞 Twilio integration with WebSocket streaming")
-    logger.info("🔧 Function calling: assess_chest_pain, assess_breathing, schedule_appointment")
-    logger.info("🚨 Emergency handling with immediate response")
-    logger.info(f"🌐 Public URL: {PUBLIC_URL}")
-    logger.info(f"🔗 WebSocket URL: wss://{PUBLIC_URL.replace('https://', '')}/stream")
-    logger.info("💰 Deepgram Agent API: ✅ Configured with advanced capabilities")
-    logger.info("=" * 70)
-    
-    # Start WebSocket server in background
-    import threading
-    def run_websocket():
-        asyncio.run(websockets.serve(twilio_handler, "0.0.0.0", 5001))
-    
-    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
-    websocket_thread.start()
-    logger.info("🎤 WebSocket server started on port 5001")
-    
-    # Start Flask app
-    logger.info("🌐 Starting Flask app on port 5000")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+# WebSocket server will be started separately for production
+# This file only defines the Flask app and functions

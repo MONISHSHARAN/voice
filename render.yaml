@@ -8,7 +8,7 @@ services:
     startCommand: python app.py
     envVars:
       - key: DEEPGRAM_API_KEY
-        value: 1b356fc0f476eb7f32bfcf5cb408635e8a1b77c6
+        value: ebae70e078574403bf495088b5ea043e456b7f2f
       - key: TWILIO_ACCOUNT_SID
         value: AC33f397657e06dac328e5d5081eb4f9fd
       - key: TWILIO_AUTH_TOKEN
