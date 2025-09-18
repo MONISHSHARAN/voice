@@ -162,7 +162,7 @@ class WebHandler(BaseHTTPRequestHandler):
                 <div class="info">
                     <h3>🌐 Configuration</h3>
                     <p><strong>Public URL:</strong> {PUBLIC_URL}</p>
-                    <p><strong>WebSocket URL:</strong> wss://{PUBLIC_URL.replace('https://', '')}/twilio</p>
+                    <p><strong>WebSocket URL:</strong> wss://{PUBLIC_URL.replace('https://', '')}:5001/twilio</p>
                     <p><strong>Deepgram Agent API:</strong> ✅ Configured with advanced function calling</p>
                     <p><strong>Language:</strong> English (optimized for medical conversations)</p>
                 </div>
