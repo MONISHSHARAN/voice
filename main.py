@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:5000")
+PUBLIC_URL = os.getenv("PUBLIC_URL", "https://web-production-39bb.up.railway.app")
 
 # --- Deepgram Agent API Connection and Handlers ---
 def sts_connect():
