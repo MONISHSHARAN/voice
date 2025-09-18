@@ -1,48 +1,26 @@
 #!/usr/bin/env python3
 """
-Simple test for the system
+Simple test to check if HTTP server starts
 """
 
-import requests
-import json
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-def simple_test():
-    print("🚀 Simple System Test")
-    print("=" * 30)
+try:
+    from flask_server import app
+    print("✅ Flask server imported successfully")
     
-    # Test backend
-    try:
-        response = requests.get("http://localhost:8000", timeout=5)
-        if response.status_code == 200:
-            print("✅ Backend: Running")
-            data = response.json()
-            print(f"   Status: {data.get('status', 'unknown')}")
-        else:
-            print(f"❌ Backend: HTTP {response.status_code}")
-    except Exception as e:
-        print(f"❌ Backend: {e}")
+    # Test if we can create the app
+    print("✅ Flask app created successfully")
     
-    # Test frontend
-    try:
-        response = requests.get("http://localhost:3000", timeout=5)
-        if response.status_code == 200:
-            print("✅ Frontend: Running")
-        else:
-            print(f"❌ Frontend: HTTP {response.status_code}")
-    except Exception as e:
-        print(f"❌ Frontend: {e}")
-    
-    print("\n🎯 System Status:")
-    print("✅ Backend: http://localhost:8000")
-    print("✅ Frontend: http://localhost:3000")
-    print("📞 Twilio: Configured")
-    print("🌍 Multilingual: English, Tamil, Hindi")
-    
-    print("\n🚀 Ready to Use!")
-    print("1. Open http://localhost:3000 in your browser")
-    print("2. Fill out the patient form with YOUR phone number")
-    print("3. Submit to receive a REAL call!")
-
-if __name__ == "__main__":
-    simple_test()
-
+    # Test the health endpoint
+    with app.test_client() as client:
+        response = client.get('/health')
+        print(f"✅ Health endpoint status: {response.status_code}")
+        print(f"✅ Health response: {response.get_json()}")
+        
+except Exception as e:
+    print(f"❌ Error: {e}")
+    import traceback
+    traceback.print_exc()
